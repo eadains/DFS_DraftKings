@@ -33,6 +33,15 @@ function get_mlb_slate(date::AbstractString)
 end
 
 
+function get_mlb_sd_slate(date::AbstractString)
+    players = CSV.read("./data/slates/sd_slate_$(date).csv", Tables.rowtable)
+    μ = [player.Projection for player in players]
+    Σ = makeposdef(Symmetric(CSV.read("./data/slates/sd_cov_$(date).csv", header=false, Tables.matrix)))
+    games = unique([player.Game for player in players])
+    teams = unique([player.Team for player in players])
+    return MLBSlate(players, games, teams, μ, Σ)
+end
+
 """
     transform_lineup(lineup::JuMP.Containers.DenseAxisArray)
 
