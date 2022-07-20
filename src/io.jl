@@ -36,6 +36,8 @@ end
 function get_mlb_sd_slate(date::AbstractString)
     players = CSV.read("./data/slates/sd_slate_$(date).csv", Tables.rowtable)
     μ = [player.Projection for player in players]
+    # Last half is captain version of players, who earn 1.5x points
+    μ = cat(μ, 1.5 .* μ, dims=1)
     Σ = makeposdef(Symmetric(CSV.read("./data/slates/sd_cov_$(date).csv", header=false, Tables.matrix)))
     games = unique([player.Game for player in players])
     teams = unique([player.Team for player in players])
@@ -114,15 +116,5 @@ function write_lineup(points::Number, lineup::AbstractDict{AbstractString,Union{
         println(file, "Projected Points: $(points)")
         println(file, "P,P,C,1B,2B,3B,SS,OF,OF,OF")
         println(file, "$(lineup["P1"]),$(lineup["P2"]),$(lineup["C"]),$(lineup["1B"]),$(lineup["2B"]),$(lineup["3B"]),$(lineup["SS"]),$(lineup["OF1"]),$(lineup["OF2"]),$(lineup["OF3"])")
-    end
-end
-
-
-open("./test.csv", "w") do file
-    for x in nym
-        println(file, values(x))
-    end
-    for x in chc
-        println(file, values(x))
     end
 end

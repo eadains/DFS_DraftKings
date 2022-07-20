@@ -1,6 +1,7 @@
 include("./src/solve.jl")
 using CPLEX
-
+using SCIP
+using Distributions
 
 function find_thetasq_upper_bound(slate)
     model = Model(CPLEX.Optimizer)
@@ -29,12 +30,12 @@ function find_thetasq_upper_bound(slate)
         # We select 5 other players
         @constraint(model, sum(x[j, i] for i = 1:p_prime) == 5)
         # Cannot select same player for captain and non-captain position
-        @constraint(model, [i = 1:p_prime], x[j, i] + x[i+p_prime] <= 1)
+        @constraint(model, [i = 1:p_prime], x[j, i] + x[j, i+p_prime] <= 1)
     end
 
     # Expectation of team 1 and 2
-    u_1 = @expression(model, sum(x[1, i] * slate.μ[i] for i = 1:p_prime) + sum(x[1, i] * 1.5 * slate.μ[i-p_prime] for i = (p_prime+1):p))
-    u_2 = @expression(model, sum(x[2, i] * slate.μ[i] for i = 1:p_prime) + sum(x[2, i] * 1.5 * slate.μ[i-p_prime] for i = (p_prime+1):p))
+    u_1 = @expression(model, sum(x[1, i] * slate.μ[i] for i = 1:p))
+    u_2 = @expression(model, sum(x[2, i] * slate.μ[i] for i = 1:p))
     # Symmetry breaking condition
     @constraint(model, u_1 >= u_2)
 
@@ -89,12 +90,12 @@ function find_delta_upper_bound(slate)
         # We select 5 other players
         @constraint(model, sum(x[j, i] for i = 1:p_prime) == 5)
         # Cannot select same player for captain and non-captain position
-        @constraint(model, [i = 1:p_prime], x[j, i] + x[i+p_prime] <= 1)
+        @constraint(model, [i = 1:p_prime], x[j, i] + x[j, i+p_prime] <= 1)
     end
 
     # Expectation of team 1 and 2
-    u_1 = @expression(model, sum(x[1, i] * slate.μ[i] for i = 1:p_prime) + sum(x[1, i] * 1.5 * slate.μ[i-p_prime] for i = (p_prime+1):p))
-    u_2 = @expression(model, sum(x[2, i] * slate.μ[i] for i = 1:p_prime) + sum(x[2, i] * 1.5 * slate.μ[i-p_prime] for i = (p_prime+1):p))
+    u_1 = @expression(model, sum(x[1, i] * slate.μ[i] for i = 1:p))
+    u_2 = @expression(model, sum(x[2, i] * slate.μ[i] for i = 1:p))
     # Symmetry breaking condition
     @constraint(model, u_1 >= u_2)
 
@@ -185,7 +186,7 @@ function find_u_max(slate)
     # Cannot select same player for captain and non-captain position
     @constraint(model, [i = 1:p_prime], x[i] + x[i+p_prime] <= 1)
 
-    obj = @expression(model, sum(x[i] * slate.μ[i] for i = 1:p_prime) + sum(x[i] * 1.5 * slate.μ[i-p_prime] for i = (p_prime+1):p))
+    obj = @expression(model, sum(x[i] * slate.μ[i] for i = 1:p))
     @objective(model, Max, obj)
     optimize!(model)
     return value(obj)
@@ -215,7 +216,7 @@ function find_z(slate)
     # Cannot select same player for captain and non-captain position
     @constraint(model, [i = 1:p_prime], x[i] + x[i+p_prime] <= 1)
 
-    mu = @expression(model, sum(x[i] * slate.μ[i] for i = 1:p_prime) + sum(x[i] * 1.5 * slate.μ[i-p_prime] for i = (p_prime+1):p))
+    mu = @expression(model, sum(x[i] * slate.μ[i] for i = 1:p))
     var = @expression(model, x' * slate.Σ * x)
 
     @objective(model, Min, mu + var)
@@ -225,7 +226,7 @@ end
 
 
 function LBP(delta, u_max, z)
-    model = Model(SCIP.Optimizer)
+    model = Model(() -> SCIP.Optimizer(display_verblevel=0))
     @variable(model, theta)
 
     @constraint(model, theta >= 0)
@@ -240,86 +241,147 @@ end
 function make_SVIs(delta_intervals, u_max, z)
     l = length(delta_intervals) - 1
     SVIs = Vector{Float64}(undef, l)
-    for i in 1:l
+    Threads.@threads for i in 1:l
         SVIs[i] = LBP(delta_intervals[i], u_max, z)
     end
     return SVIs
 end
 
 
-thetasq_upper_bound = find_thetasq_upper_bound(slate)
-thetasq_intervals = make_thetasq_intervals(thetasq_upper_bound, 100)
-theta_upper_intervals = make_theta_upper_intervals(thetasq_intervals)
-theta_lower_intervals = make_theta_lower_intervals(thetasq_intervals)
-delta_upper_bound = find_delta_upper_bound(slate)
-delta_intervals = make_delta_intervals(delta_upper_bound, 100)
-cdf_constants = make_cdf_constants(theta_lower_intervals, delta_intervals)
-u_max = find_u_max(slate)
-z = find_z(slate)
-SVIs = make_SVIs(delta_intervals, u_max, z)
-
-
-model = Model(CPLEX.Optimizer)
-set_optimizer_attribute(model, "CPXPARAM_MIP_Display", 4)
-set_optimizer_attribute(model, "CPXPARAM_ScreenOutput", 1)
-set_optimizer_attribute(model, "CPXPARAM_Emphasis_MIP", 3)
-set_optimizer_attribute(model, "CPXPARAM_TimeLimit", 300)
-
-p_prime = length(slate.players)
-p = 2p_prime
-@variable(model, x[1:2, 1:p], binary = true)
-# Linearization variables
-@variable(model, v[1:2, 1:p, 1:p], binary = true)
-@variable(model, r[1:p, 1:p], binary = true)
-# Interval selection variables
-@variable(model, w[1:100], binary = true)
-@variable(model, y[1:100], binary = true)
-@variable(model, u_prime)
-
-for j in 1:2
-    # Total salary must be <= $50,000. Captain players cost 1.5x as much
-    @constraint(model, sum(slate.players[i].Salary * x[j, i] for i = 1:p_prime) + sum(slate.players[i-p_prime].Salary * 1.5 * x[j, i] for i = (p_prime+1):p) <= 50000)
-
-    for team in slate.teams
-        # Must select at least 1 player from each team
-        @constraint(model, sum(x[j, i] for i = 1:p_prime if slate.players[i].Team == team) + sum(x[j, i] for i = (p_prime+1):p if slate.players[i-p_prime].Team == team) >= 1)
-    end
-
-    # We must select one captain player
-    @constraint(model, sum(x[j, i] for i = (p_prime+1):p) == 1)
-    # We select 5 other players
-    @constraint(model, sum(x[j, i] for i = 1:p_prime) == 5)
-    # Cannot select same player for captain and non-captain position
-    @constraint(model, [i = 1:p_prime], x[j, i] + x[i+p_prime] <= 1)
+struct OptimConstants
+    thetasq_intervals::AbstractVector{<:Real}
+    theta_upper_intervals::AbstractVector{<:Real}
+    delta_intervals::AbstractVector{<:Real}
+    cdf_constants::AbstractMatrix{<:Real}
+    SVIs::AbstractVector{<:Real}
 end
 
-# Expectation of team 1 and 2
-u_1 = @expression(model, sum(x[1, i] * slate.μ[i] for i = 1:p_prime) + sum(x[1, i] * 1.5 * slate.μ[i-p_prime] for i = (p_prime+1):p))
-u_2 = @expression(model, sum(x[2, i] * slate.μ[i] for i = 1:p_prime) + sum(x[2, i] * 1.5 * slate.μ[i-p_prime] for i = (p_prime+1):p))
-# Symmetry breaking condition
-@constraint(model, u_1 >= u_2)
+function make_optim_constants(slate::MLBSlate)
+    thetasq_upper_bound = find_thetasq_upper_bound(slate)
+    thetasq_intervals = make_thetasq_intervals(thetasq_upper_bound, 100)
+    theta_upper_intervals = make_theta_upper_intervals(thetasq_intervals)
+    theta_lower_intervals = make_theta_lower_intervals(thetasq_intervals)
+    delta_upper_bound = find_delta_upper_bound(slate)
+    delta_intervals = make_delta_intervals(delta_upper_bound, 100)
+    cdf_constants = make_cdf_constants(theta_lower_intervals, delta_intervals)
+    u_max = find_u_max(slate)
+    z = find_z(slate)
+    SVIs = make_SVIs(delta_intervals, u_max, z)
+    return OptimConstants(thetasq_intervals, theta_upper_intervals, delta_intervals, cdf_constants, SVIs)
+end
 
-s = @expression(model, sum(sum(slate.Σ[j, j] * x[i, j] for j in 1:p) + 2 * sum(slate.Σ[j_1, j_2] * v[i, j_1, j_2] for j_1 = 1:p, j_2 = 1:p if j_1 < j_2) for i in 1:2) - 2 * sum(sum(slate.Σ[j_1, j_2] * r[j_1, j_2] for j_2 in 1:p) for j_1 in 1:p))
-@constraint(model, [i = 1:2, j_1 = 1:p, j_2 = 1:p], v[i, j_1, j_2] <= x[i, j_1])
-@constraint(model, [i = 1:2, j_1 = 1:p, j_2 = 1:p], v[i, j_1, j_2] <= x[i, j_2])
-@constraint(model, [i = 1:2, j_1 = 1:p, j_2 = 1:p], v[i, j_1, j_2] >= x[i, j_1] + x[i, j_2] - 1)
-@constraint(model, [j_1 = 1:p, j_2 = 1:p], r[j_1, j_2] <= x[1, j_1])
-@constraint(model, [j_1 = 1:p, j_2 = 1:p], r[j_1, j_2] <= x[2, j_2])
-@constraint(model, [j_1 = 1:p, j_2 = 1:p], r[j_1, j_2] >= x[1, j_1] + x[2, j_2] - 1)
 
-@constraint(model, sum(w[i] for i = 1:100) == 1)
-@constraint(model, sum(y[i] for i = 1:100) == 1)
+function do_sd_optim(constants::OptimConstants, slate::MLBSlate, cuts::AbstractVector{<:AbstractMatrix{<:Integer}})
+    model = Model(CPLEX.Optimizer)
+    #set_optimizer_attribute(model, "CPXPARAM_MIP_Display", 4)
+    set_optimizer_attribute(model, "CPXPARAM_ScreenOutput", 0)
+    set_optimizer_attribute(model, "CPXPARAM_Emphasis_MIP", 5)
+    set_optimizer_attribute(model, "CPXPARAM_MIP_Strategy_Probe", 3)
+    set_optimizer_attribute(model, "CPXPARAM_TimeLimit", 180)
 
-@constraint(model, [q = 1:100], thetasq_intervals[q] * w[q] <= s)
-@constraint(model, [q = 1:100], s <= thetasq_intervals[q+1] + thetasq_intervals[101] * (1 - w[q]))
+    p_prime = length(slate.players)
+    p = 2p_prime
+    @variable(model, x[1:2, 1:p], binary = true)
+    # Linearization variables
+    @variable(model, v[1:2, 1:p, 1:p], binary = true)
+    @variable(model, r[1:p, 1:p], binary = true)
+    # Interval selection variables
+    @variable(model, w[1:100], binary = true)
+    @variable(model, y[1:100], binary = true)
+    @variable(model, u_prime)
 
-@constraint(model, [k = 1:100], delta_intervals[k] * y[k] <= u_1 - u_2)
-@constraint(model, [k = 1:100], u_1 - u_2 <= delta_intervals[k+1] + delta_intervals[101] * (1 - y[k]))
+    for j in 1:2
+        # Total salary must be <= $50,000. Captain players cost 1.5x as much
+        @constraint(model, sum(slate.players[i].Salary * x[j, i] for i = 1:p_prime) + sum(slate.players[i-p_prime].Salary * 1.5 * x[j, i] for i = (p_prime+1):p) <= 50000)
 
-@constraint(model, [q = 1:100, k = 1:100], u_prime <= u_1 * cdf_constants[q, k] + u_2 * (1 - cdf_constants[q, k]) + 250 * (2 - w[q] - y[k]))
+        for team in slate.teams
+            # Must select at least 1 player from each team
+            @constraint(model, sum(x[j, i] for i = 1:p_prime if slate.players[i].Team == team) + sum(x[j, i] for i = (p_prime+1):p if slate.players[i-p_prime].Team == team) >= 1)
+        end
 
-@constraint(model, [k = 1:100], s >= SVIs[k]^2 * y[k])
+        # We must select one captain player
+        @constraint(model, sum(x[j, i] for i = (p_prime+1):p) == 1)
+        # We select 5 other players
+        @constraint(model, sum(x[j, i] for i = 1:p_prime) == 5)
+        # Cannot select same player for captain and non-captain position
+        @constraint(model, [i = 1:p_prime], x[j, i] + x[j, i+p_prime] <= 1)
+    end
 
-s_prime = @expression(model, sum(theta_upper_intervals[q] * w[q] for q = 1:100))
+    for cut in cuts
+        @constraint(model, sum(x[i] * cut[i] for i in eachindex(x)) <= 11)
+    end
 
-@objective(model, Max, u_prime + (1 / sqrt(2pi)) * s_prime)
+    # Expectation of team 1 and 2
+    u_1 = @expression(model, sum(x[1, i] * slate.μ[i] for i = 1:p))
+    u_2 = @expression(model, sum(x[2, i] * slate.μ[i] for i = 1:p))
+    # Symmetry breaking condition
+    @constraint(model, u_1 >= u_2)
+
+    s = @expression(model, sum(sum(slate.Σ[j, j] * x[i, j] for j in 1:p) + 2 * sum(slate.Σ[j_1, j_2] * v[i, j_1, j_2] for j_1 = 1:p, j_2 = 1:p if j_1 < j_2) for i in 1:2) - 2 * sum(sum(slate.Σ[j_1, j_2] * r[j_1, j_2] for j_2 in 1:p) for j_1 in 1:p))
+    @constraint(model, [i = 1:2, j_1 = 1:p, j_2 = 1:p], v[i, j_1, j_2] <= x[i, j_1])
+    @constraint(model, [i = 1:2, j_1 = 1:p, j_2 = 1:p], v[i, j_1, j_2] <= x[i, j_2])
+    @constraint(model, [i = 1:2, j_1 = 1:p, j_2 = 1:p], v[i, j_1, j_2] >= x[i, j_1] + x[i, j_2] - 1)
+    @constraint(model, [j_1 = 1:p, j_2 = 1:p], r[j_1, j_2] <= x[1, j_1])
+    @constraint(model, [j_1 = 1:p, j_2 = 1:p], r[j_1, j_2] <= x[2, j_2])
+    @constraint(model, [j_1 = 1:p, j_2 = 1:p], r[j_1, j_2] >= x[1, j_1] + x[2, j_2] - 1)
+
+    @constraint(model, sum(w[i] for i = 1:100) == 1)
+    @constraint(model, sum(y[i] for i = 1:100) == 1)
+
+    @constraint(model, [q = 1:100], constants.thetasq_intervals[q] * w[q] <= s)
+    @constraint(model, [q = 1:100], s <= constants.thetasq_intervals[q+1] + constants.thetasq_intervals[101] * (1 - w[q]))
+
+    @constraint(model, [k = 1:100], constants.delta_intervals[k] * y[k] <= u_1 - u_2)
+    @constraint(model, [k = 1:100], u_1 - u_2 <= constants.delta_intervals[k+1] + constants.delta_intervals[101] * (1 - y[k]))
+
+    @constraint(model, [q = 1:100, k = 1:100], u_prime <= u_1 * constants.cdf_constants[q, k] + u_2 * (1 - constants.cdf_constants[q, k]) + 250 * (2 - w[q] - y[k]))
+
+    @constraint(model, [k = 1:100], s >= constants.SVIs[k]^2 * y[k])
+
+    s_prime = @expression(model, sum(constants.theta_upper_intervals[q] * w[q] for q = 1:100))
+
+    @objective(model, Max, u_prime + (1 / sqrt(2pi)) * s_prime)
+    optimize!(model)
+    return (round.(Int, value.(x)), objective_value(model))
+end
+
+
+
+
+function emax(x::AbstractMatrix{<:Real}, slate::MLBSlate)
+    mu_x1 = x[1, :]' * slate.μ
+    mu_x2 = x[2, :]' * slate.μ
+    var_x1 = x[1, :]' * slate.Σ * x[1, :]
+    var_x2 = x[2, :]' * slate.Σ * x[2, :]
+    cov = x[1, :]' * slate.Σ * x[2, :]
+
+    theta = sqrt(var_x1 + var_x2 - 2 * cov)
+
+    Φ = x -> cdf(Normal(), x)
+    ϕ = x -> pdf(Normal(), x)
+
+    return mu_x1 * Φ((mu_x1 - mu_x2) / theta) + mu_x2 * Φ((mu_x2 - mu_x1) / theta) + theta * ϕ((mu_x1 - mu_x2) / theta)
+end
+
+LB = -Inf
+UB = Inf
+incumbent = 0
+cuts = Matrix{Int64}[]
+
+while true
+    result, new_UB = do_sd_optim(constants, slate, cuts)
+    println("New UB: $(new_UB)")
+    UB = new_UB
+    new_LB = emax(result, slate)
+    if new_LB > LB
+        println("New LB: $(new_LB)")
+        LB = new_LB
+        incumbent = result
+    end
+    if (abs(UB - LB) / abs(LB)) < 0.0001
+        break
+    else
+        println("UB LB Diff: $((abs(UB - LB) / abs(LB)))")
+        append!(cuts, Ref(result))
+    end
+end
