@@ -1,6 +1,9 @@
 using CSV
 using Tables
 using Statistics
+using HypothesisTests
+using LinearAlgebra
+using Memoize
 
 
 """
@@ -32,12 +35,12 @@ Reads players from CSV given by 'date' parameter and computes covariance matrix.
 correlation
 """
 function write_cov(num::Integer, date::AbstractString)
-    players = CSV.read("./data/slates/slate_$(date).csv", Tables.rowtable)
-    hist = CSV.read("./data/linestar_data.csv", Tables.rowtable)
+    players = CSV.read("./data/slates/$(date).csv", Tables.rowtable)
+    hist = CSV.read("./data/hist.csv", Tables.rowtable)
     corr = get_corr(num, hist, players)
     σ = get_sigma(num, hist, players)
     Σ = Diagonal(σ) * corr * Diagonal(σ)
-    CSV.write("./data/slates/cov_$(date).csv", Tables.table(Σ), writeheader=false)
+    CSV.write("./data/slates/$(date)_cov.csv", Tables.table(Σ), writeheader=false)
 end
 
 
@@ -81,7 +84,7 @@ higher variances.
 """
 function get_captain_sigma(num::Integer, hist::AbstractVector{<:NamedTuple}, players::AbstractVector{<:NamedTuple})
     old_sigma = get_sigma(num, hist, players)
-    new_sigma = cat(σ, 1.5 .* σ, dims=1)
+    new_sigma = cat(old_sigma, 1.5 .* old_sigma, dims=1)
     return new_sigma
 end
 
@@ -101,7 +104,7 @@ function get_similar_std(num::Integer, hist::AbstractVector{<:NamedTuple}, playe
     similar_players = [x for x in hist if (x.Position == player.Position) && (x.Order == player.Order)]
     # Form list of tuples where first element is historical points actually scored,
     # and second element is distance between the historical projection and the current players projection
-    similar_proj = [(x.Scored, euclid_dist(player.Projection, x.Consensus)) for x in similar_players]
+    similar_proj = [(x.Scored, euclid_dist(player.Projection, x.Projection)) for x in similar_players]
     # Sort by projection distance
     sort!(similar_proj, by=x -> x[2])
     # Return standard deviation of actually scored points from num number of players with the closest
@@ -185,7 +188,7 @@ function players_corr(num::Integer, hist::AbstractVector{<:NamedTuple}, p1::Name
     end
 
     # List of tuples containing the players realized scores and their distance from the given player's projections
-    results = [(x.Scored, y.Scored, euclid_dist((x.Consensus, y.Consensus), (p1.Projection, p2.Projection))) for (x, y) in pairs]
+    results = [(x.Scored, y.Scored, euclid_dist((x.Projection, y.Projection), (p1.Projection, p2.Projection))) for (x, y) in pairs]
     # Sort by distance
     sort!(results, by=x -> x[3])
 
@@ -206,13 +209,15 @@ end
     player_pairs(hist::AbstractVector{<:NamedTuple}, p1_position::AbstractString, p1_order::Integer, p2_position::AbstractString, p2_order::Integer, opposing::Bool)
 
 Finds pairs of players where the each player matches the position and order given, respectively.
-Parameter opposing decides whether the pairs of players should be from opposing teams or the same team
+Parameter opposing decides whether the pairs of players should be from opposing teams or the same team.
+This function is cached because there are only limited numbers of combinations of player positions and orders,
+and this function is expensive
 """
-function player_pairs(hist::AbstractVector{<:NamedTuple}, p1_position::AbstractString, p1_order::Integer, p2_position::AbstractString, p2_order::Integer, opposing::Bool)
+@memoize function player_pairs(hist::AbstractVector{<:NamedTuple}, p1_position::AbstractString, p1_order::Integer, p2_position::AbstractString, p2_order::Integer, opposing::Bool)
     p1_sim = [x for x in hist if (x.Position == p1_position) && (x.Order == p1_order)]
     p2_sim = [x for x in hist if (x.Position == p2_position) && (x.Order == p2_order)]
     if opposing
-        pairs = [(p1_sim[i], p2_sim[j]) for i = 1:length(p1_sim), j = 1:length(p2_sim) if (p1_sim[i].Team == p2_sim[j].Opp_Team) && (p1_sim[i].Date == p2_sim[j].Date)]
+        pairs = [(p1_sim[i], p2_sim[j]) for i = 1:length(p1_sim), j = 1:length(p2_sim) if (p1_sim[i].Team == p2_sim[j].Opponent) && (p1_sim[i].Date == p2_sim[j].Date)]
     else
         pairs = [(p1_sim[i], p2_sim[j]) for i = 1:length(p1_sim), j = 1:length(p2_sim) if (p1_sim[i].Team == p2_sim[j].Team) && (p1_sim[i].Date == p2_sim[j].Date)]
     end

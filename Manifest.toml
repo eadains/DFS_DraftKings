@@ -351,6 +351,12 @@ version = "1.6.0"
 deps = ["Artifacts", "Libdl"]
 uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
 
+[[deps.Memoize]]
+deps = ["MacroTools"]
+git-tree-sha1 = "2b1dfcba103de714d31c033b5dacc2e4a12c7caa"
+uuid = "c03570c3-d221-55d1-a50c-7939bbd78826"
+version = "0.4.4"
+
 [[deps.Missings]]
 deps = ["DataAPI"]
 git-tree-sha1 = "bf210ce90b6c9eed32d25dbcae1ebc565df2687f"
@@ -638,6 +644,12 @@ deps = ["DataAPI", "InlineStrings", "Parsers"]
 git-tree-sha1 = "b1be2855ed9ed8eac54e5caff2afcdb442d52c23"
 uuid = "ea10d353-3f73-51f8-a26c-33c1cb351aa5"
 version = "1.4.2"
+
+[[deps.Xpress]]
+deps = ["Libdl", "LinearAlgebra", "MathOptInterface", "SparseArrays"]
+git-tree-sha1 = "5478c650a9aeac6cb02c45802398de02502fee42"
+uuid = "9e70acf3-d6c9-5be6-b5bd-4e2c73e3e054"
+version = "0.15.1"
 
 [[deps.Zlib_jll]]
 deps = ["Libdl"]

@@ -1,5 +1,5 @@
 using JuMP
-using CPLEX
+using Xpress
 using Distributions
 include("types.jl")
 
@@ -10,41 +10,41 @@ include("types.jl")
 Runs optimization for cash games
 """
 function do_optim(slate::MLBSlate)
-    model = Model(CPLEX.Optimizer)
-    set_optimizer_attribute(model, "CPXPARAM_ScreenOutput", 0)
+    model = Model(Xpress.Optimizer)
 
+    p = length(slate.players)
     # Players variable
-    @variable(model, x[[player.ID for player in slate.players]], binary = true)
+    @variable(model, x[1:p], binary = true)
     # Games variable
     @variable(model, g[slate.games], binary = true)
 
     # Total salary must be <= $50,000
-    @constraint(model, sum(player.Salary * x[player.ID] for player in slate.players) <= 50000)
+    @constraint(model, sum(slate.players[i].Salary * x[i] for i = 1:p) <= 50000)
     # Must select 10 total players
     @constraint(model, sum(x) == 10)
     # Constraints for each position
-    @constraint(model, sum(x[player.ID] for player in slate.players if player.Position == "P") == 2)
-    @constraint(model, sum(x[player.ID] for player in slate.players if player.Position == "C") == 1)
-    @constraint(model, sum(x[player.ID] for player in slate.players if player.Position == "1B") == 1)
-    @constraint(model, sum(x[player.ID] for player in slate.players if player.Position == "2B") == 1)
-    @constraint(model, sum(x[player.ID] for player in slate.players if player.Position == "3B") == 1)
-    @constraint(model, sum(x[player.ID] for player in slate.players if player.Position == "SS") == 1)
-    @constraint(model, sum(x[player.ID] for player in slate.players if player.Position == "OF") == 3)
+    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "P") == 2)
+    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "C") == 1)
+    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "1B") == 1)
+    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "2B") == 1)
+    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "3B") == 1)
+    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "SS") == 1)
+    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "OF") == 3)
 
     for team in slate.teams
         # Maximum of 5 batters from each team
-        @constraint(model, sum(x[player.ID] for player in slate.players if (player.Position != "P") && (player.Team == team)) <= 5)
+        @constraint(model, sum(x[i] for i = 1:p if (slate.players[i].Position != "P") && (slate.players[i].Team == team)) <= 5)
     end
 
     for game in slate.games
         # If no players are selected from a game z is set to 0
-        @constraint(model, g[game] <= sum(x[player.ID] for player in slate.players if player.Game == game))
+        @constraint(model, g[game] <= sum(x[i] for i = 1:p if slate.players[i].Game == game))
     end
     # Must select players from at least 2 games
     @constraint(model, sum(g) >= 2)
 
     # Maximize projected fantasy points
-    @objective(model, Max, sum(player.Projection * x[player.ID] for player in slate.players))
+    @objective(model, Max, sum(slate.players[i].Projection * x[i] for i = 1:p))
 
     optimize!(model)
     println(termination_status(model))
@@ -57,56 +57,54 @@ end
 
 Runs optimization for tournaments
 """
-function do_optim(slate::MLBSlate, λ::Float64, overlap::Integer, past_lineups::Vector{JuMP.Containers.DenseAxisArray})
-    model = Model(CPLEX.Optimizer)
-    set_optimizer_attribute(model, "CPXPARAM_ScreenOutput", 0)
+function do_optim(slate::MLBSlate, λ::Real, overlap::Integer, past_lineups::AbstractVector{<:AbstractVector{<:Integer}}, opp_mu::Real, opp_var::Real, opp_cov::AbstractVector{<:Real})
+    model = Model(Xpress.Optimizer)
 
+    p = length(slate.players)
     # Players variable
-    @variable(model, x[[player.ID for player in slate.players]], binary = true)
+    @variable(model, x[1:p], binary = true)
     # Games variable
     @variable(model, g[slate.games], binary = true)
 
     # Total salary must be <= $50,000
-    @constraint(model, sum(player.Salary * x[player.ID] for player in slate.players) <= 50000)
+    @constraint(model, sum(slate.players[i].Salary * x[i] for i = 1:p) <= 50000)
     # Must select 10 total players
     @constraint(model, sum(x) == 10)
     # Constraints for each position
-    @constraint(model, sum(x[player.ID] for player in slate.players if player.Position == "P") == 2)
-    @constraint(model, sum(x[player.ID] for player in slate.players if player.Position == "C") == 1)
-    @constraint(model, sum(x[player.ID] for player in slate.players if player.Position == "1B") == 1)
-    @constraint(model, sum(x[player.ID] for player in slate.players if player.Position == "2B") == 1)
-    @constraint(model, sum(x[player.ID] for player in slate.players if player.Position == "3B") == 1)
-    @constraint(model, sum(x[player.ID] for player in slate.players if player.Position == "SS") == 1)
-    @constraint(model, sum(x[player.ID] for player in slate.players if player.Position == "OF") == 3)
+    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "P") == 2)
+    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "C") == 1)
+    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "1B") == 1)
+    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "2B") == 1)
+    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "3B") == 1)
+    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "SS") == 1)
+    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "OF") == 3)
 
     for team in slate.teams
         # Maximum of 5 batters from each team
-        @constraint(model, sum(x[player.ID] for player in slate.players if (player.Position != "P") && (player.Team == team)) <= 5)
+        @constraint(model, sum(x[i] for i = 1:p if (slate.players[i].Position != "P") && (slate.players[i].Team == team)) <= 5)
     end
 
     for game in slate.games
         # If no players are selected from a game z is set to 0
-        @constraint(model, g[game] <= sum(x[player.ID] for player in slate.players if player.Game == game))
+        @constraint(model, g[game] <= sum(x[i] for i = 1:p if slate.players[i].Game == game))
     end
     # Must select players from at least 2 games
     @constraint(model, sum(g) >= 2)
 
     # If there are any past lineups, ensure that the current lineup doesn't overlap too much with any of them
-    if length(past_lineups) > 0
-        for past in past_lineups
-            @constraint(model, sum(x[player.ID] * past[player.ID] for player in slate.players) <= overlap)
-        end
+    for past in past_lineups
+        @constraint(model, sum(x[i] * past[i] for i = 1:p) <= overlap)
     end
 
-    mu_x = @expression(model, x.data' * slate.μ)
-    var_x = @expression(model, x.data' * slate.Σ * x.data)
+    mu_x = @expression(model, x' * slate.μ - opp_mu)
+    var_x = @expression(model, x' * slate.Σ * x + opp_var - 2 * x' * opp_cov)
     # Maximize projected fantasy points
     @objective(model, Max, mu_x + λ * var_x)
 
     optimize!(model)
     println(termination_status(model))
-    # Return optimization result vector, as well as estimated probability of exceeding 250 points
-    return (round.(Int, value.(x)), 1 - cdf(Normal(), (250 - value(mu_x)) / sqrt(value(var_x))))
+    # Return optimization result vector, as well as estimated probability of exceeding 220 points
+    return (round.(Int, value.(x)), 1 - cdf(Normal(), -value(mu_x) / sqrt(value(var_x))))
 end
 
 
@@ -115,13 +113,13 @@ end
 
 Does optimization over range of λ values and returns the lineup with the highest objective function.
 """
-function lambda_max(data::MLBSlate, past_lineups::Vector{JuMP.Containers.DenseAxisArray}, overlap::Integer)
+function lambda_max(data::MLBSlate, past_lineups::AbstractVector{<:AbstractVector{<:Integer}}, overlap::Integer, opp_mu::Real, opp_var::Real, opp_cov::AbstractVector{<:Real})
     # I've found that lambdas from around 0 to 0.05 are selected, with most being 0.03
     lambdas = 0.01:0.01:0.10
-    w_star = Vector{Tuple{JuMP.Containers.DenseAxisArray,Float64}}(undef, length(lambdas))
+    w_star = Vector{Tuple{Vector{Int64},Float64}}(undef, length(lambdas))
     # Perform optimization over array of λ values
     Threads.@threads for i in 1:length(lambdas)
-        w_star[i] = do_optim(data, lambdas[i], overlap, past_lineups)
+        w_star[i] = do_optim(data, lambdas[i], overlap, past_lineups, opp_mu, opp_var, opp_cov)
     end
 
     # Find lambda value that leads to highest objective function and return its corresponding lineup vector
@@ -137,11 +135,11 @@ end
 Solves the tournament optimization problem with N entries.
 Appends lineups to OptimData pastlineups array
 """
-function tourny_lineups(data::MLBSlate, N::Integer, overlap::Integer)
-    past_lineups = JuMP.Containers.DenseAxisArray[]
+function tourny_lineups(data::MLBSlate, N::Integer, overlap::Integer, opp_mu::Real, opp_var::Real, opp_cov::AbstractVector{<:Real})
+    past_lineups = Vector{Int64}[]
     for n in 1:N
         println(n)
-        lineup = lambda_max(data, past_lineups, overlap)
+        lineup = lambda_max(data, past_lineups, overlap, opp_mu, opp_var, opp_cov)
         append!(past_lineups, Ref(lineup))
     end
     return past_lineups

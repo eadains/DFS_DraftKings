@@ -1,5 +1,6 @@
 using Tables
 using CSV
+using LinearAlgebra
 include("types.jl")
 
 
@@ -24,9 +25,9 @@ end
 Constructs MLBSlate given a date.
 """
 function get_mlb_slate(date::AbstractString)
-    players = CSV.read("./data/slates/slate_$(date).csv", Tables.rowtable)
+    players = CSV.read("./data/slates/$(date).csv", Tables.rowtable)
     μ = [player.Projection for player in players]
-    Σ = makeposdef(Symmetric(CSV.read("./data/slates/cov_$(date).csv", header=false, Tables.matrix)))
+    Σ = makeposdef(Symmetric(CSV.read("./data/slates/$(date)_cov.csv", header=false, Tables.matrix)))
     games = unique([player.Game for player in players])
     teams = unique([player.Team for player in players])
     return MLBSlate(players, games, teams, μ, Σ)
@@ -49,9 +50,10 @@ end
 
 Transforms lineup vector from optimization to a dict mapping between roster position and player ID
 """
-function transform_lineup(slate::MLBSlate, lineup::JuMP.Containers.DenseAxisArray)
+function transform_lineup(slate::MLBSlate, lineup::AbstractVector{<:Integer})
     # Roster positions to fill
-    positions = Dict{String,Union{String,Missing}}("P1" => missing,
+    positions = Dict{String,Union{String,Missing}}(
+        "P1" => missing,
         "P2" => missing,
         "C" => missing,
         "1B" => missing,
@@ -60,10 +62,13 @@ function transform_lineup(slate::MLBSlate, lineup::JuMP.Containers.DenseAxisArra
         "SS" => missing,
         "OF1" => missing,
         "OF2" => missing,
-        "OF3" => missing)
-    for player in slate.players
+        "OF3" => missing
+    )
+    p = length(slate.players)
+    for i in 1:p
         # If player is selected
-        if value(lineup[player.ID]) == 1
+        if value(lineup[i]) == 1
+            player = slate.players[i]
             # If pitcher, fill open pitcher lost
             if player.Position == "P"
                 if ismissing(positions["P1"])
@@ -96,7 +101,7 @@ end
 
 Writes multiple tournament lineups to toury_lineups.csv
 """
-function write_lineups(lineups::AbstractVector{Dict{AbstractString,Union{Missing,AbstractString}}})
+function write_lineups(lineups::AbstractVector{<:AbstractDict{<:AbstractString,<:Union{<:Missing,<:AbstractString}}})
     open("./tourny_lineups.csv", "w") do file
         println(file, "P,P,C,1B,2B,3B,SS,OF,OF,OF")
         for lineup in lineups
@@ -111,7 +116,7 @@ end
 
 Writes cash game lineup to file with expected points
 """
-function write_lineup(points::Number, lineup::AbstractDict{AbstractString,Union{Missing,AbstractString}})
+function write_lineup(points::Number, lineup::AbstractDict{<:AbstractString,<:Union{<:Missing,<:AbstractString}})
     open("./cash_lineup.csv", "w") do file
         println(file, "Projected Points: $(points)")
         println(file, "P,P,C,1B,2B,3B,SS,OF,OF,OF")

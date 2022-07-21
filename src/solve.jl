@@ -2,6 +2,8 @@ using Dates
 include("optim.jl")
 include("types.jl")
 include("io.jl")
+include("opp_teams.jl")
+
 
 """
     solve_cash()
@@ -15,6 +17,7 @@ function solve_cash()
     write_lineup(points, lineup)
 end
 
+
 """
     solve_tourny()
 
@@ -22,18 +25,8 @@ Solves tournament optimization and writes results to file
 """
 function solve_tourny()
     slate = get_mlb_slate("$(Dates.today())")
-
-    overlap = 0
-    while true
-        print("Enter overlap parameter: ")
-        overlap = readline()
-        try
-            overlap = parse(Int, overlap)
-            break
-        catch
-            print("Invalid number entered, try again\n")
-        end
-    end
+    overlap = 7
+    opp_mu, opp_var, opp_cov = estimate_opp_stats(slate, 250)
 
     num = 0
     while true
@@ -46,7 +39,7 @@ function solve_tourny()
             print("Invalid number entered, try again\n")
         end
     end
-    lineups = tourny_lineups(slate, num, overlap)
+    lineups = tourny_lineups(slate, num, overlap, opp_mu, opp_var, opp_cov)
     lineups = [transform_lineup(slate, lineup) for lineup in lineups]
     write_lineups(lineups)
 end
