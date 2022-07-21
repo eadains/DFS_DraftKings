@@ -52,7 +52,7 @@ Transforms lineup vector from optimization to a dict mapping between roster posi
 """
 function transform_lineup(slate::MLBSlate, lineup::AbstractVector{<:Integer})
     # Roster positions to fill
-    positions = Dict{String,Union{String,Missing}}(
+    positions = Dict{String,Union{Int64,Missing}}(
         "P1" => missing,
         "P2" => missing,
         "C" => missing,
@@ -101,7 +101,7 @@ end
 
 Writes multiple tournament lineups to toury_lineups.csv
 """
-function write_lineups(lineups::AbstractVector{<:AbstractDict{<:AbstractString,<:Union{<:Missing,<:AbstractString}}})
+function write_lineups(lineups::AbstractVector{<:AbstractDict{<:AbstractString,<:Union{<:Missing,<:Integer}}})
     open("./tourny_lineups.csv", "w") do file
         println(file, "P,P,C,1B,2B,3B,SS,OF,OF,OF")
         for lineup in lineups
@@ -116,7 +116,7 @@ end
 
 Writes cash game lineup to file with expected points
 """
-function write_lineup(points::Number, lineup::AbstractDict{<:AbstractString,<:Union{<:Missing,<:AbstractString}})
+function write_lineup(points::Number, lineup::AbstractDict{<:AbstractString,<:Union{<:Missing,<:Integer}})
     open("./cash_lineup.csv", "w") do file
         println(file, "Projected Points: $(points)")
         println(file, "P,P,C,1B,2B,3B,SS,OF,OF,OF")

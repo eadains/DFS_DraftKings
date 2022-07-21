@@ -26,7 +26,7 @@ Solves tournament optimization and writes results to file
 function solve_tourny()
     slate = get_mlb_slate("$(Dates.today())")
     overlap = 7
-    opp_mu, opp_var, opp_cov = estimate_opp_stats(slate, 250)
+    opp_mu, opp_var, opp_cov = estimate_opp_stats(slate, 50000, 1, 150)
 
     num = 0
     while true
