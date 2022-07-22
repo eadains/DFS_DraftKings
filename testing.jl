@@ -9,28 +9,40 @@ function find_thetasq_upper_bound(slate)
     set_optimizer_attribute(model, "CPXPARAM_Emphasis_MIP", 5)
     set_optimizer_attribute(model, "CPXPARAM_TimeLimit", 180)
 
-    p_prime = length(slate.players)
-    p = 2p_prime
+    p = length(slate.players)
+    # Players variable
     @variable(model, x[1:2, 1:p], binary = true)
+    # Games variable
+    @variable(model, g[slate.games], binary = true)
     # Linearization variables
     @variable(model, v[1:2, 1:p, 1:p], binary = true)
     @variable(model, r[1:p, 1:p], binary = true)
 
     for j in 1:2
-        # Total salary must be <= $50,000. Captain players cost 1.5x as much
-        @constraint(model, sum(slate.players[i].Salary * x[j, i] for i = 1:p_prime) + sum(slate.players[i-p_prime].Salary * 1.5 * x[j, i] for i = (p_prime+1):p) <= 50000)
+        # Total salary must be <= $50,000
+        @constraint(model, sum(slate.players[i].Salary * x[j, i] for i = 1:p) <= 50000)
+        # Must select 10 total players
+        @constraint(model, sum(x[j, :]) == 10)
+        # Constraints for each position
+        @constraint(model, sum(x[j, i] for i = 1:p if slate.players[i].Position == "P") == 2)
+        @constraint(model, sum(x[j, i] for i = 1:p if slate.players[i].Position == "C") == 1)
+        @constraint(model, sum(x[j, i] for i = 1:p if slate.players[i].Position == "1B") == 1)
+        @constraint(model, sum(x[j, i] for i = 1:p if slate.players[i].Position == "2B") == 1)
+        @constraint(model, sum(x[j, i] for i = 1:p if slate.players[i].Position == "3B") == 1)
+        @constraint(model, sum(x[j, i] for i = 1:p if slate.players[i].Position == "SS") == 1)
+        @constraint(model, sum(x[j, i] for i = 1:p if slate.players[i].Position == "OF") == 3)
 
         for team in slate.teams
-            # Must select at least 1 player from each team
-            @constraint(model, sum(x[j, i] for i = 1:p_prime if slate.players[i].Team == team) + sum(x[j, i] for i = (p_prime+1):p if slate.players[i-p_prime].Team == team) >= 1)
+            # Maximum of 5 batters from each team
+            @constraint(model, sum(x[j, i] for i = 1:p if (slate.players[i].Position != "P") && (slate.players[i].Team == team)) <= 5)
         end
 
-        # We must select one captain player
-        @constraint(model, sum(x[j, i] for i = (p_prime+1):p) == 1)
-        # We select 5 other players
-        @constraint(model, sum(x[j, i] for i = 1:p_prime) == 5)
-        # Cannot select same player for captain and non-captain position
-        @constraint(model, [i = 1:p_prime], x[j, i] + x[j, i+p_prime] <= 1)
+        for game in slate.games
+            # If no players are selected from a game z is set to 0
+            @constraint(model, g[game] <= sum(x[j, i] for i = 1:p if slate.players[i].Game == game))
+        end
+        # Must select players from at least 2 games
+        @constraint(model, sum(g) >= 2)
     end
 
     # Expectation of team 1 and 2
@@ -69,28 +81,39 @@ function find_delta_upper_bound(slate)
     set_optimizer_attribute(model, "CPXPARAM_ScreenOutput", 0)
     set_optimizer_attribute(model, "CPXPARAM_TimeLimit", 180)
 
-    p_prime = length(slate.players)
-    p = 2p_prime
+    p = length(slate.players)
     @variable(model, x[1:2, 1:p], binary = true)
+    # Games variable
+    @variable(model, g[slate.games], binary = true)
     # Linearization variables
     @variable(model, v[1:2, 1:p, 1:p], binary = true)
     @variable(model, r[1:p, 1:p], binary = true)
 
     for j in 1:2
-        # Total salary must be <= $50,000. Captain players cost 1.5x as much
-        @constraint(model, sum(slate.players[i].Salary * x[j, i] for i = 1:p_prime) + sum(slate.players[i-p_prime].Salary * 1.5 * x[j, i] for i = (p_prime+1):p) <= 50000)
+        # Total salary must be <= $50,000
+        @constraint(model, sum(slate.players[i].Salary * x[j, i] for i = 1:p) <= 50000)
+        # Must select 10 total players
+        @constraint(model, sum(x[j, :]) == 10)
+        # Constraints for each position
+        @constraint(model, sum(x[j, i] for i = 1:p if slate.players[i].Position == "P") == 2)
+        @constraint(model, sum(x[j, i] for i = 1:p if slate.players[i].Position == "C") == 1)
+        @constraint(model, sum(x[j, i] for i = 1:p if slate.players[i].Position == "1B") == 1)
+        @constraint(model, sum(x[j, i] for i = 1:p if slate.players[i].Position == "2B") == 1)
+        @constraint(model, sum(x[j, i] for i = 1:p if slate.players[i].Position == "3B") == 1)
+        @constraint(model, sum(x[j, i] for i = 1:p if slate.players[i].Position == "SS") == 1)
+        @constraint(model, sum(x[j, i] for i = 1:p if slate.players[i].Position == "OF") == 3)
 
         for team in slate.teams
-            # Must select at least 1 player from each team
-            @constraint(model, sum(x[j, i] for i = 1:p_prime if slate.players[i].Team == team) + sum(x[j, i] for i = (p_prime+1):p if slate.players[i-p_prime].Team == team) >= 1)
+            # Maximum of 5 batters from each team
+            @constraint(model, sum(x[j, i] for i = 1:p if (slate.players[i].Position != "P") && (slate.players[i].Team == team)) <= 5)
         end
 
-        # We must select one captain player
-        @constraint(model, sum(x[j, i] for i = (p_prime+1):p) == 1)
-        # We select 5 other players
-        @constraint(model, sum(x[j, i] for i = 1:p_prime) == 5)
-        # Cannot select same player for captain and non-captain position
-        @constraint(model, [i = 1:p_prime], x[j, i] + x[j, i+p_prime] <= 1)
+        for game in slate.games
+            # If no players are selected from a game z is set to 0
+            @constraint(model, g[game] <= sum(x[j, i] for i = 1:p if slate.players[i].Game == game))
+        end
+        # Must select players from at least 2 games
+        @constraint(model, sum(g) >= 2)
     end
 
     # Expectation of team 1 and 2
@@ -167,24 +190,35 @@ function find_u_max(slate)
     model = Model(CPLEX.Optimizer)
     set_optimizer_attribute(model, "CPXPARAM_ScreenOutput", 0)
 
-    p_prime = length(slate.players)
-    p = 2p_prime
+    p = length(slate.players)
     @variable(model, x[1:p], binary = true)
+    # Games variable
+    @variable(model, g[slate.games], binary = true)
 
-    # Total salary must be <= $50,000. Captain players cost 1.5x as much
-    @constraint(model, sum(slate.players[i].Salary * x[i] for i = 1:p_prime) + sum(slate.players[i-p_prime].Salary * 1.5 * x[i] for i = (p_prime+1):p) <= 50000)
+    # Total salary must be <= $50,000
+    @constraint(model, sum(slate.players[i].Salary * x[i] for i = 1:p) <= 50000)
+    # Must select 10 total players
+    @constraint(model, sum(x) == 10)
+    # Constraints for each position
+    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "P") == 2)
+    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "C") == 1)
+    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "1B") == 1)
+    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "2B") == 1)
+    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "3B") == 1)
+    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "SS") == 1)
+    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "OF") == 3)
 
     for team in slate.teams
-        # Must select at least 1 player from each team
-        @constraint(model, sum(x[i] for i = 1:p_prime if slate.players[i].Team == team) + sum(x[i] for i = (p_prime+1):p if slate.players[i-p_prime].Team == team) >= 1)
+        # Maximum of 5 batters from each team
+        @constraint(model, sum(x[i] for i = 1:p if (slate.players[i].Position != "P") && (slate.players[i].Team == team)) <= 5)
     end
 
-    # We must select one captain player
-    @constraint(model, sum(x[i] for i = (p_prime+1):p) == 1)
-    # We select 5 other players
-    @constraint(model, sum(x[i] for i = 1:p_prime) == 5)
-    # Cannot select same player for captain and non-captain position
-    @constraint(model, [i = 1:p_prime], x[i] + x[i+p_prime] <= 1)
+    for game in slate.games
+        # If no players are selected from a game z is set to 0
+        @constraint(model, g[game] <= sum(x[i] for i = 1:p if slate.players[i].Game == game))
+    end
+    # Must select players from at least 2 games
+    @constraint(model, sum(g) >= 2)
 
     obj = @expression(model, sum(x[i] * slate.μ[i] for i = 1:p))
     @objective(model, Max, obj)
@@ -197,24 +231,35 @@ function find_z(slate)
     model = Model(CPLEX.Optimizer)
     set_optimizer_attribute(model, "CPXPARAM_ScreenOutput", 0)
 
-    p_prime = length(slate.players)
-    p = 2p_prime
+    p = length(slate.players)
     @variable(model, x[1:p], binary = true)
+    # Games variable
+    @variable(model, g[slate.games], binary = true)
 
-    # Total salary must be <= $50,000. Captain players cost 1.5x as much
-    @constraint(model, sum(slate.players[i].Salary * x[i] for i = 1:p_prime) + sum(slate.players[i-p_prime].Salary * 1.5 * x[i] for i = (p_prime+1):p) <= 50000)
+    # Total salary must be <= $50,000
+    @constraint(model, sum(slate.players[i].Salary * x[i] for i = 1:p) <= 50000)
+    # Must select 10 total players
+    @constraint(model, sum(x) == 10)
+    # Constraints for each position
+    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "P") == 2)
+    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "C") == 1)
+    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "1B") == 1)
+    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "2B") == 1)
+    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "3B") == 1)
+    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "SS") == 1)
+    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "OF") == 3)
 
     for team in slate.teams
-        # Must select at least 1 player from each team
-        @constraint(model, sum(x[i] for i = 1:p_prime if slate.players[i].Team == team) + sum(x[i] for i = (p_prime+1):p if slate.players[i-p_prime].Team == team) >= 1)
+        # Maximum of 5 batters from each team
+        @constraint(model, sum(x[i] for i = 1:p if (slate.players[i].Position != "P") && (slate.players[i].Team == team)) <= 5)
     end
 
-    # We must select one captain player
-    @constraint(model, sum(x[i] for i = (p_prime+1):p) == 1)
-    # We select 5 other players
-    @constraint(model, sum(x[i] for i = 1:p_prime) == 5)
-    # Cannot select same player for captain and non-captain position
-    @constraint(model, [i = 1:p_prime], x[i] + x[i+p_prime] <= 1)
+    for game in slate.games
+        # If no players are selected from a game z is set to 0
+        @constraint(model, g[game] <= sum(x[i] for i = 1:p if slate.players[i].Game == game))
+    end
+    # Must select players from at least 2 games
+    @constraint(model, sum(g) >= 2)
 
     mu = @expression(model, sum(x[i] * slate.μ[i] for i = 1:p))
     var = @expression(model, x' * slate.Σ * x)
@@ -273,15 +318,16 @@ end
 
 function do_sd_optim(constants::OptimConstants, slate::MLBSlate, cuts::AbstractVector{<:AbstractMatrix{<:Integer}})
     model = Model(CPLEX.Optimizer)
-    #set_optimizer_attribute(model, "CPXPARAM_MIP_Display", 4)
-    set_optimizer_attribute(model, "CPXPARAM_ScreenOutput", 0)
+    set_optimizer_attribute(model, "CPXPARAM_MIP_Display", 4)
+    #set_optimizer_attribute(model, "CPXPARAM_ScreenOutput", 0)
     set_optimizer_attribute(model, "CPXPARAM_Emphasis_MIP", 5)
     set_optimizer_attribute(model, "CPXPARAM_MIP_Strategy_Probe", 3)
-    set_optimizer_attribute(model, "CPXPARAM_TimeLimit", 180)
+    set_optimizer_attribute(model, "CPXPARAM_TimeLimit", 1800)
 
-    p_prime = length(slate.players)
-    p = 2p_prime
+    p = length(slate.players)
     @variable(model, x[1:2, 1:p], binary = true)
+    # Games variable
+    @variable(model, g[slate.games], binary = true)
     # Linearization variables
     @variable(model, v[1:2, 1:p, 1:p], binary = true)
     @variable(model, r[1:p, 1:p], binary = true)
@@ -291,24 +337,36 @@ function do_sd_optim(constants::OptimConstants, slate::MLBSlate, cuts::AbstractV
     @variable(model, u_prime)
 
     for j in 1:2
-        # Total salary must be <= $50,000. Captain players cost 1.5x as much
-        @constraint(model, sum(slate.players[i].Salary * x[j, i] for i = 1:p_prime) + sum(slate.players[i-p_prime].Salary * 1.5 * x[j, i] for i = (p_prime+1):p) <= 50000)
+        # Total salary must be <= $50,000
+        @constraint(model, sum(slate.players[i].Salary * x[j, i] for i = 1:p) <= 50000)
+        # Must select 10 total players
+        @constraint(model, sum(x[j, :]) == 10)
+        # Constraints for each position
+        @constraint(model, sum(x[j, i] for i = 1:p if slate.players[i].Position == "P") == 2)
+        @constraint(model, sum(x[j, i] for i = 1:p if slate.players[i].Position == "C") == 1)
+        @constraint(model, sum(x[j, i] for i = 1:p if slate.players[i].Position == "1B") == 1)
+        @constraint(model, sum(x[j, i] for i = 1:p if slate.players[i].Position == "2B") == 1)
+        @constraint(model, sum(x[j, i] for i = 1:p if slate.players[i].Position == "3B") == 1)
+        @constraint(model, sum(x[j, i] for i = 1:p if slate.players[i].Position == "SS") == 1)
+        @constraint(model, sum(x[j, i] for i = 1:p if slate.players[i].Position == "OF") == 3)
 
         for team in slate.teams
-            # Must select at least 1 player from each team
-            @constraint(model, sum(x[j, i] for i = 1:p_prime if slate.players[i].Team == team) + sum(x[j, i] for i = (p_prime+1):p if slate.players[i-p_prime].Team == team) >= 1)
+            # Maximum of 5 batters from each team
+            @constraint(model, sum(x[j, i] for i = 1:p if (slate.players[i].Position != "P") && (slate.players[i].Team == team)) <= 5)
         end
 
-        # We must select one captain player
-        @constraint(model, sum(x[j, i] for i = (p_prime+1):p) == 1)
-        # We select 5 other players
-        @constraint(model, sum(x[j, i] for i = 1:p_prime) == 5)
-        # Cannot select same player for captain and non-captain position
-        @constraint(model, [i = 1:p_prime], x[j, i] + x[j, i+p_prime] <= 1)
+        for game in slate.games
+            # If no players are selected from a game z is set to 0
+            @constraint(model, g[game] <= sum(x[j, i] for i = 1:p if slate.players[i].Game == game))
+        end
+        # Must select players from at least 2 games
+        @constraint(model, sum(g) >= 2)
     end
 
     for cut in cuts
-        @constraint(model, sum(x[i] * cut[i] for i in eachindex(x)) <= 11)
+        # Make sure the exact same set of lineups isn't chosen again.
+        # IE differing in at least 1 place
+        @constraint(model, sum(x[i] * cut[i] for i in eachindex(x)) <= 19)
     end
 
     # Expectation of team 1 and 2
@@ -346,9 +404,7 @@ function do_sd_optim(constants::OptimConstants, slate::MLBSlate, cuts::AbstractV
 end
 
 
-
-
-function emax(x::AbstractMatrix{<:Real}, slate::MLBSlate)
+function emax(x::AbstractMatrix{<:Integer}, slate::MLBSlate)
     mu_x1 = x[1, :]' * slate.μ
     mu_x2 = x[2, :]' * slate.μ
     var_x1 = x[1, :]' * slate.Σ * x[1, :]
@@ -361,27 +417,4 @@ function emax(x::AbstractMatrix{<:Real}, slate::MLBSlate)
     ϕ = x -> pdf(Normal(), x)
 
     return mu_x1 * Φ((mu_x1 - mu_x2) / theta) + mu_x2 * Φ((mu_x2 - mu_x1) / theta) + theta * ϕ((mu_x1 - mu_x2) / theta)
-end
-
-LB = -Inf
-UB = Inf
-incumbent = 0
-cuts = Matrix{Int64}[]
-
-while true
-    result, new_UB = do_sd_optim(constants, slate, cuts)
-    println("New UB: $(new_UB)")
-    UB = new_UB
-    new_LB = emax(result, slate)
-    if new_LB > LB
-        println("New LB: $(new_LB)")
-        LB = new_LB
-        incumbent = result
-    end
-    if (abs(UB - LB) / abs(LB)) < 0.0001
-        break
-    else
-        println("UB LB Diff: $((abs(UB - LB) / abs(LB)))")
-        append!(cuts, Ref(result))
-    end
 end
