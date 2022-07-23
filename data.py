@@ -177,7 +177,7 @@ def get_mlb_proj_slate(periodId):
     slate_players = [
         x
         for x in data["Ownership"]["Salaries"]
-        if (x["GID"] in main_slate_game_ids) & (x["PP"] > 0)
+        if (x["GID"] in main_slate_game_ids) & (x["AggProj"] > 0)
     ]
     # Construct dictionary relating player IDs to projected ownership
     player_ids = [x["PID"] for x in slate_players]
@@ -221,7 +221,7 @@ def get_mlb_proj_slate(periodId):
             "Team": x["PTEAM"],
             "Opponent": x["OTEAM"],
             "Order": x["BattingOrder"],
-            "Projection": x["PP"],
+            "Projection": x["AggProj"],
             "pOwn": x["ProjOwned"],
         }
         for x in slate_players
@@ -261,6 +261,8 @@ if __name__ == "__main__":
         how="left",
         suffixes=(None, "_r"),
     )
+    # Somestimes multiple name matches are found, so merging causes duplicate rows
+    slate = slate.drop_duplicates(subset=["Name", "Team"])
     slate = slate[
         [
             "Name",

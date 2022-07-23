@@ -79,6 +79,7 @@ end
 function find_delta_upper_bound(slate)
     model = Model(CPLEX.Optimizer)
     set_optimizer_attribute(model, "CPXPARAM_ScreenOutput", 0)
+    set_optimizer_attribute(model, "CPXPARAM_Emphasis_MIP", 5)
     set_optimizer_attribute(model, "CPXPARAM_TimeLimit", 180)
 
     p = length(slate.players)
@@ -189,6 +190,7 @@ end
 function find_u_max(slate)
     model = Model(CPLEX.Optimizer)
     set_optimizer_attribute(model, "CPXPARAM_ScreenOutput", 0)
+    set_optimizer_attribute(model, "CPXPARAM_TimeLimit", 180)
 
     p = length(slate.players)
     @variable(model, x[1:p], binary = true)
@@ -230,6 +232,7 @@ end
 function find_z(slate)
     model = Model(CPLEX.Optimizer)
     set_optimizer_attribute(model, "CPXPARAM_ScreenOutput", 0)
+    set_optimizer_attribute(model, "CPXPARAM_TimeLimit", 180)
 
     p = length(slate.players)
     @variable(model, x[1:p], binary = true)
@@ -302,27 +305,30 @@ struct OptimConstants
 end
 
 function make_optim_constants(slate::MLBSlate)
+    println("Theta Square Upper Bound")
     thetasq_upper_bound = find_thetasq_upper_bound(slate)
-    thetasq_intervals = make_thetasq_intervals(thetasq_upper_bound, 100)
+    thetasq_intervals = make_thetasq_intervals(thetasq_upper_bound, 50)
     theta_upper_intervals = make_theta_upper_intervals(thetasq_intervals)
     theta_lower_intervals = make_theta_lower_intervals(thetasq_intervals)
+    println("Delta upper bound")
     delta_upper_bound = find_delta_upper_bound(slate)
-    delta_intervals = make_delta_intervals(delta_upper_bound, 100)
+    delta_intervals = make_delta_intervals(delta_upper_bound, 50)
     cdf_constants = make_cdf_constants(theta_lower_intervals, delta_intervals)
+    println("U Max")
     u_max = find_u_max(slate)
+    println("Z")
     z = find_z(slate)
+    println("SVIs")
     SVIs = make_SVIs(delta_intervals, u_max, z)
     return OptimConstants(thetasq_intervals, theta_upper_intervals, delta_intervals, cdf_constants, SVIs)
 end
 
 
-function do_sd_optim(constants::OptimConstants, slate::MLBSlate, cuts::AbstractVector{<:AbstractMatrix{<:Integer}})
+function do_sd_optim(constants::OptimConstants, slate::MLBSlate)
     model = Model(CPLEX.Optimizer)
     set_optimizer_attribute(model, "CPXPARAM_MIP_Display", 4)
-    #set_optimizer_attribute(model, "CPXPARAM_ScreenOutput", 0)
     set_optimizer_attribute(model, "CPXPARAM_Emphasis_MIP", 5)
-    set_optimizer_attribute(model, "CPXPARAM_MIP_Strategy_Probe", 3)
-    set_optimizer_attribute(model, "CPXPARAM_TimeLimit", 1800)
+    set_optimizer_attribute(model, "CPXPARAM_TimeLimit", 1200)
 
     p = length(slate.players)
     @variable(model, x[1:2, 1:p], binary = true)
@@ -332,8 +338,8 @@ function do_sd_optim(constants::OptimConstants, slate::MLBSlate, cuts::AbstractV
     @variable(model, v[1:2, 1:p, 1:p], binary = true)
     @variable(model, r[1:p, 1:p], binary = true)
     # Interval selection variables
-    @variable(model, w[1:100], binary = true)
-    @variable(model, y[1:100], binary = true)
+    @variable(model, w[1:50], binary = true)
+    @variable(model, y[1:50], binary = true)
     @variable(model, u_prime)
 
     for j in 1:2
@@ -363,12 +369,6 @@ function do_sd_optim(constants::OptimConstants, slate::MLBSlate, cuts::AbstractV
         @constraint(model, sum(g) >= 2)
     end
 
-    for cut in cuts
-        # Make sure the exact same set of lineups isn't chosen again.
-        # IE differing in at least 1 place
-        @constraint(model, sum(x[i] * cut[i] for i in eachindex(x)) <= 19)
-    end
-
     # Expectation of team 1 and 2
     u_1 = @expression(model, sum(x[1, i] * slate.μ[i] for i = 1:p))
     u_2 = @expression(model, sum(x[2, i] * slate.μ[i] for i = 1:p))
@@ -383,24 +383,24 @@ function do_sd_optim(constants::OptimConstants, slate::MLBSlate, cuts::AbstractV
     @constraint(model, [j_1 = 1:p, j_2 = 1:p], r[j_1, j_2] <= x[2, j_2])
     @constraint(model, [j_1 = 1:p, j_2 = 1:p], r[j_1, j_2] >= x[1, j_1] + x[2, j_2] - 1)
 
-    @constraint(model, sum(w[i] for i = 1:100) == 1)
-    @constraint(model, sum(y[i] for i = 1:100) == 1)
+    @constraint(model, sum(w[i] for i = 1:50) == 1)
+    @constraint(model, sum(y[i] for i = 1:50) == 1)
 
-    @constraint(model, [q = 1:100], constants.thetasq_intervals[q] * w[q] <= s)
-    @constraint(model, [q = 1:100], s <= constants.thetasq_intervals[q+1] + constants.thetasq_intervals[101] * (1 - w[q]))
+    @constraint(model, [q = 1:50], constants.thetasq_intervals[q] * w[q] <= s)
+    @constraint(model, [q = 1:50], s <= constants.thetasq_intervals[q+1] + constants.thetasq_intervals[51] * (1 - w[q]))
 
-    @constraint(model, [k = 1:100], constants.delta_intervals[k] * y[k] <= u_1 - u_2)
-    @constraint(model, [k = 1:100], u_1 - u_2 <= constants.delta_intervals[k+1] + constants.delta_intervals[101] * (1 - y[k]))
+    @constraint(model, [k = 1:50], constants.delta_intervals[k] * y[k] <= u_1 - u_2)
+    @constraint(model, [k = 1:50], u_1 - u_2 <= constants.delta_intervals[k+1] + constants.delta_intervals[51] * (1 - y[k]))
 
-    @constraint(model, [q = 1:100, k = 1:100], u_prime <= u_1 * constants.cdf_constants[q, k] + u_2 * (1 - constants.cdf_constants[q, k]) + 250 * (2 - w[q] - y[k]))
+    @constraint(model, [q = 1:50, k = 1:50], u_prime <= u_1 * constants.cdf_constants[q, k] + u_2 * (1 - constants.cdf_constants[q, k]) + 250 * (2 - w[q] - y[k]))
 
-    @constraint(model, [k = 1:100], s >= constants.SVIs[k]^2 * y[k])
+    @constraint(model, [k = 1:50], s >= constants.SVIs[k]^2 * y[k])
 
-    s_prime = @expression(model, sum(constants.theta_upper_intervals[q] * w[q] for q = 1:100))
+    s_prime = @expression(model, sum(constants.theta_upper_intervals[q] * w[q] for q = 1:50))
 
     @objective(model, Max, u_prime + (1 / sqrt(2pi)) * s_prime)
     optimize!(model)
-    return (round.(Int, value.(x)), objective_value(model))
+    return round.(Int, value.(x))
 end
 
 
@@ -417,4 +417,10 @@ function emax(x::AbstractMatrix{<:Integer}, slate::MLBSlate)
     ϕ = x -> pdf(Normal(), x)
 
     return mu_x1 * Φ((mu_x1 - mu_x2) / theta) + mu_x2 * Φ((mu_x2 - mu_x1) / theta) + theta * ϕ((mu_x1 - mu_x2) / theta)
+end
+
+
+for i in 1:2
+    lineup = transform_lineup(slate, lineups[i, :])
+    println("$(lineup["P1"]),$(lineup["P2"]),$(lineup["C"]),$(lineup["1B"]),$(lineup["2B"]),$(lineup["3B"]),$(lineup["SS"]),$(lineup["OF1"]),$(lineup["OF2"]),$(lineup["OF3"])")
 end

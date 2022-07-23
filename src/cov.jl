@@ -36,27 +36,11 @@ correlation
 """
 function write_cov(num::Integer, date::AbstractString)
     players = CSV.read("./data/slates/$(date).csv", Tables.rowtable)
-    hist = CSV.read("./data/hist.csv", Tables.rowtable)
+    hist = CSV.read("./data/mlb_hist.csv", Tables.rowtable)
     corr = get_corr(num, hist, players)
     σ = get_sigma(num, hist, players)
     Σ = Diagonal(σ) * corr * Diagonal(σ)
     CSV.write("./data/slates/$(date)_cov.csv", Tables.table(Σ), writeheader=false)
-end
-
-
-"""
-    write_captain_cov(num::Integer, date::AbstractString)
-
-Sames as 'write_cov' function except this is for DraftKings showdown format
-where players can be selected as captains.
-"""
-function write_captain_cov(num::Integer, date::AbstractString)
-    players = CSV.read("./data/slates/sd_slate_$(date).csv", Tables.rowtable)
-    hist = CSV.read("./data/linestar_data.csv", Tables.rowtable)
-    corr = get_captain_corr(num, hist, players)
-    σ = get_captain_sigma(num, hist, players)
-    Σ = Diagonal(σ) * corr * Diagonal(σ)
-    CSV.write("./data/slates/sd_cov_$(date).csv", Tables.table(Σ), writeheader=false)
 end
 
 
@@ -72,20 +56,6 @@ function get_sigma(num::Integer, hist::AbstractVector{<:NamedTuple}, players::Ab
         σ[i] = get_similar_std(num, hist, player)
     end
     return σ
-end
-
-
-"""
-    get_captain_sigma(num::Integer, hist::AbstractVector{<:NamedTuple}, players::AbstractVector{<:NamedTuple})
-
-Gets standard deviation vector for DraftKings showdown format. Last half of vector is first half multiplied by 1.5.
-This is to account for the fact that the captain versions of players get 1.5 times as many points, as so have
-higher variances.
-"""
-function get_captain_sigma(num::Integer, hist::AbstractVector{<:NamedTuple}, players::AbstractVector{<:NamedTuple})
-    old_sigma = get_sigma(num, hist, players)
-    new_sigma = cat(old_sigma, 1.5 .* old_sigma, dims=1)
-    return new_sigma
 end
 
 
@@ -141,26 +111,6 @@ function get_corr(num::Integer, hist::AbstractVector{<:NamedTuple}, players::Abs
         end
     end
     return corr
-end
-
-
-"""
-    get_captain_corr(num::Integer, hist::AbstractVector{<:NamedTuple}, players::AbstractVector{<:NamedTuple})
-
-Computes correlation matrix for DraftKings showdown format where 1 player is chosen as captain.
-Ex: If originally there are 20 players, this matrix will have dimension 40x40 instead of 20x20
-    It's 4 blocks of the 20x20 correlation matrices in each corner.
-    So, entry (1,1) is the correlation of the original player with themselves and entry
-    (1, 21) is the correlation of the Captain version of the player with their non-captain version, and so on
-"""
-function get_captain_corr(num::Integer, hist::AbstractVector{<:NamedTuple}, players::AbstractVector{<:NamedTuple})
-    # Standard correlation matrix of players, say 20x20
-    old_corr = get_corr(num, hist, players)
-    # Now two blocks, 40x20
-    column_stack = cat(old_corr, old_corr, dims=1)
-    # Now 4 blocks, 40x40
-    new_corr = cat(column_stack, column_stack, dims=2)
-    return new_corr
 end
 
 

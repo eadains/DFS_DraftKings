@@ -9,6 +9,7 @@ struct MLBSlate <: Slate
     Σ::AbstractMatrix{<:Real}
 end
 
+
 # Construct MLBSlate with DraftKings position numbers
 function MLBSlate(players::AbstractVector{<:NamedTuple}, games::AbstractVector{<:AbstractString}, teams::AbstractVector{<:AbstractString}, μ::AbstractVector{<:Real}, Σ::AbstractMatrix{<:Real})
     positions = Dict(
