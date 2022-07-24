@@ -23,3 +23,19 @@ function MLBSlate(players::AbstractVector{<:NamedTuple}, games::AbstractVector{<
     )
     return MLBSlate(positions, players, games, teams, μ, Σ)
 end
+
+
+struct MLBTournyOptimData
+    slate::MLBSlate
+    overlap::Integer
+    payoffs::AbstractVector{<:Tuple{<:Integer,<:Real}}
+    order_stats_mu::AbstractDict{<:Integer,<:Real}
+    order_stats_sigma::AbstractDict{<:Integer,<:Real}
+    opp_cov::AbstractVector{<:Real}
+end
+
+
+function MLBTournyOptimData(slate::MLBSlate, payoffs::AbstractVector{<:Tuple{<:Integer,<:Real}}, overlap::Integer, entries::Integer, samples::Integer)
+    order_stats_mu, order_stats_sigma, opp_cov = get_order_stats(slate, payoffs, entries, samples)
+    return MLBTournyOptimData(slate, overlap, payoffs, order_stats_mu, order_stats_sigma, opp_cov)
+end

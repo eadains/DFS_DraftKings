@@ -96,46 +96,57 @@ function opp_team_score(slate::Slate, μ::AbstractVector{<:Real})
 end
 
 
-"""
-    compute_order_stat(slate::Slate, μ::AbstractVector{<:Real}, cutoff::Integer, entries::Integer)
-
-Computes the expected order statistics of opponent lineups. Entries is total number of opponent lineups
-to simulate and cutoff is the order statistic to compute. A cutoff of 10 represents the tenth highest
-opponent score.
-"""
-function compute_order_stat(slate::Slate, μ::AbstractVector{<:Real}, cutoff::Integer, entries::Integer)
+function get_opp_scores(slate::Slate, μ::AbstractVector{<:Real}, entries::Integer)
     opp_scores = Vector{Float64}(undef, entries)
     for i = 1:entries
         opp_scores[i] = opp_team_score(slate, μ)
     end
     sort!(opp_scores, rev=true)
-    return opp_scores[cutoff]
+    return opp_scores
 end
 
 
-"""
-    estimate_opp_stats(slate::Slate, entries::Integer, cutoff::Integer, samples::Integer)
-
-Estimates the mean, variance, and covariance of opponent lineup order statistics.
-Assumes players scores are multivariate normal.
-"""
-function estimate_opp_stats(slate::Slate, entries::Integer, cutoff::Integer, samples::Integer)
+function get_samples(slate::Slate, entries::Integer, samples::Integer)
     score_draws = Vector{Vector{Float64}}(undef, samples)
-    order_stats = Vector{Float64}(undef, samples)
-    Threads.@threads for i = 1:samples
-        # Draw random player score vector
-        score_draw = rand(MvNormal(slate.μ, slate.Σ))
-        # Compute opponent order statistic with the random score vector
-        order_stat = compute_order_stat(slate, score_draw, cutoff, entries)
+    opp_scores = Vector{Vector{Float64}}(undef, samples)
+    for i in 1:samples
+        draw = rand(MvNormal(slate.μ, slate.Σ))
+        scores = get_opp_scores(slate, draw, entries)
         println("$(i) done.")
-        score_draws[i] = score_draw
-        order_stats[i] = order_stat
+        score_draws[i] = draw
+        opp_scores[i] = scores
     end
+    return (score_draws, opp_scores)
+end
 
-    opp_mu = mean(order_stats)
-    opp_var = var(order_stats)
-    # This is covariance between each individual player's score draws and the whole group of order statistics
-    opp_cov = [cov([x[i] for x in score_draws], order_stats) for i in 1:length(slate.players)]
 
-    return (opp_mu, opp_var, opp_cov)
+function get_order_stats(slate::Slate, payoffs::AbstractVector{<:Tuple{<:Integer,<:Real}}, entries::Integer, samples::Integer)
+    score_draws, opp_scores = get_samples(slate, entries, samples)
+    order_stats_mu = Dict{Int64,Float64}()
+    order_stats_sigma = Dict{Int64,Float64}()
+    opp_cov = Vector{Float64}()
+    for (rank, payoff) in payoffs
+        if payoff == 0
+            # The rank 1 before the first rank where payoff is 0 is the last rank that gets paid
+            r = rank - 1
+            # Compute covariance between each players score draws and the rth order statistic of opponent scores
+            opp_cov = [cov([x[i] for x in score_draws], [x[r] for x in opp_scores]) for i in 1:length(slate.players)]
+        end
+        # Get mean and variance of order statistics for each rank
+        order_stats_mu[rank] = mean(x[rank] for x in opp_scores)
+        order_stats_sigma[rank] = var(x[rank] for x in opp_scores)
+    end
+    return (order_stats_mu, order_stats_sigma, opp_cov)
+end
+
+
+function payoff(lineup_mu::Real, lineup_var::Real, order_stats_mu::AbstractDict{<:Integer,<:Real}, order_stats_sigma::AbstractDict{<:Integer,<:Real}, payoffs::AbstractVector{<:Tuple{<:Integer,<:Real}})
+    E = 0
+    for i in 1:(length(payoffs)-1)
+        mu = lineup_mu - order_stats_mu[payoffs[i][1]]
+        sigmasq = lineup_var + order_stats_sigma[payoffs[i][1]]
+        rank_payoff = (payoffs[i][2] - payoffs[i+1][2]) * (1 - cdf(Normal(), -mu / sqrt(sigmasq)))
+        E += rank_payoff
+    end
+    return E
 end
