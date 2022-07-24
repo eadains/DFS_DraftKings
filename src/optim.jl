@@ -11,8 +11,7 @@ include("opp_teams.jl")
 Runs optimization for cash games
 """
 function do_optim(slate::MLBSlate)
-    model = Model(CPLEX.Optimizer)
-    set_optimizer_attribute(model, "CPXPARAM_ScreenOutput", 0)
+    model = Model(Xpress.Optimizer)
 
     p = length(slate.players)
     # Players variable
@@ -60,9 +59,7 @@ end
 Runs optimization for tournaments
 """
 function do_optim(data::MLBTournyOptimData, λ::Real, past_lineups::AbstractVector{<:AbstractVector{<:Integer}})
-    model = Model(CPLEX.Optimizer)
-    # set_optimizer_attribute(model, "CPXPARAM_Threads", 1)
-    # set_optimizer_attribute(model, "CPXPARAM_Emphasis_MIP", 0)
+    model = Model(Xpress.Optimizer)
 
     p = length(data.slate.players)
     # Players variable
@@ -119,7 +116,7 @@ Does optimization over range of λ values and returns the lineup with the highes
 """
 function lambda_max(data::MLBTournyOptimData, past_lineups::AbstractVector{<:AbstractVector{<:Integer}})
     # I've found that lambdas from around 0 to 0.05 are selected, with most being 0.03
-    lambdas = 0.01:0.01:0.10
+    lambdas = 0.01:0.01:0.08
     w_star = Vector{Tuple{Vector{Int64},Float64}}(undef, length(lambdas))
     # Perform optimization over array of λ values
     Threads.@threads for i in 1:length(lambdas)

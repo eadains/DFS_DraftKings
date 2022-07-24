@@ -47,7 +47,7 @@ function solve_tourny()
         (1491, 0.50),
         (3420, 0)
     ]
-    data = MLBTournyOptimData(slate, payoffs, 7, 14200, 100)
+    data = MLBTournyOptimData(slate, payoffs, 7, 14200, 250)
 
     num = 0
     while true

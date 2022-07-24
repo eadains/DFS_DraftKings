@@ -109,7 +109,7 @@ end
 function get_samples(slate::Slate, entries::Integer, samples::Integer)
     score_draws = Vector{Vector{Float64}}(undef, samples)
     opp_scores = Vector{Vector{Float64}}(undef, samples)
-    for i in 1:samples
+    Threads.@threads for i in 1:samples
         draw = rand(MvNormal(slate.μ, slate.Σ))
         scores = get_opp_scores(slate, draw, entries)
         println("$(i) done.")
