@@ -96,6 +96,11 @@ function opp_team_score(slate::Slate, μ::AbstractVector{<:Real})
 end
 
 
+"""
+    get_opp_scores(slate::Slate, μ::AbstractVector{<:Real}, entries::Integer)
+
+Get sorted list of opponent lineup scores
+"""
 function get_opp_scores(slate::Slate, μ::AbstractVector{<:Real}, entries::Integer)
     opp_scores = Vector{Float64}(undef, entries)
     for i = 1:entries
@@ -106,6 +111,11 @@ function get_opp_scores(slate::Slate, μ::AbstractVector{<:Real}, entries::Integ
 end
 
 
+"""
+    get_samples(slate::Slate, entries::Integer, samples::Integer)
+
+Get samples of random player score draws and opponent scores
+"""
 function get_samples(slate::Slate, entries::Integer, samples::Integer)
     score_draws = Vector{Vector{Float64}}(undef, samples)
     opp_scores = Vector{Vector{Float64}}(undef, samples)
@@ -120,6 +130,11 @@ function get_samples(slate::Slate, entries::Integer, samples::Integer)
 end
 
 
+"""
+    get_order_stats(slate::Slate, payoffs::AbstractVector{<:Tuple{<:Integer,<:Real}}, entries::Integer, samples::Integer)
+
+Get mean, variance, and covariance of order statistics given ranks defined in payoffs
+"""
 function get_order_stats(slate::Slate, payoffs::AbstractVector{<:Tuple{<:Integer,<:Real}}, entries::Integer, samples::Integer)
     score_draws, opp_scores = get_samples(slate, entries, samples)
     order_stats_mu = Dict{Int64,Float64}()
@@ -140,6 +155,11 @@ function get_order_stats(slate::Slate, payoffs::AbstractVector{<:Tuple{<:Integer
 end
 
 
+"""
+    payoff(lineup_mu::Real, lineup_var::Real, order_stats_mu::AbstractDict{<:Integer,<:Real}, order_stats_sigma::AbstractDict{<:Integer,<:Real}, payoffs::AbstractVector{<:Tuple{<:Integer,<:Real}})
+
+Calculates expected payoff given a lineups mean and variance
+"""
 function payoff(lineup_mu::Real, lineup_var::Real, order_stats_mu::AbstractDict{<:Integer,<:Real}, order_stats_sigma::AbstractDict{<:Integer,<:Real}, payoffs::AbstractVector{<:Tuple{<:Integer,<:Real}})
     E = 0
     for i in 1:(length(payoffs)-1)
