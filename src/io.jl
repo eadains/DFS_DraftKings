@@ -27,23 +27,12 @@ Constructs MLBSlate given a date.
 function get_mlb_slate(date::AbstractString)
     players = CSV.read("./data/slates/$(date).csv", Tables.rowtable)
     μ = [player.Projection for player in players]
-    Σ = makeposdef(Symmetric(CSV.read("./data/slates/$(date)_cov.csv", header=false, Tables.matrix)))
+    Σ = makeposdef(Symmetric(CSV.read("./data/slates/$(date)_cov.csv", header=false, types=Float64, Tables.matrix)))
     games = unique([player.Game for player in players])
     teams = unique([player.Team for player in players])
     return MLBSlate(players, games, teams, μ, Σ)
 end
 
-
-function get_mlb_sd_slate(date::AbstractString)
-    players = CSV.read("./data/slates/sd_slate_$(date).csv", Tables.rowtable)
-    μ = [player.Projection for player in players]
-    # Last half is captain version of players, who earn 1.5x points
-    μ = cat(μ, 1.5 .* μ, dims=1)
-    Σ = makeposdef(Symmetric(CSV.read("./data/slates/sd_cov_$(date).csv", header=false, Tables.matrix)))
-    games = unique([player.Game for player in players])
-    teams = unique([player.Team for player in players])
-    return MLBSlate(players, games, teams, μ, Σ)
-end
 
 """
     transform_lineup(lineup::JuMP.Containers.DenseAxisArray)

@@ -1,40 +1,47 @@
-using CSV
 using Tables
-using Statistics
-using HypothesisTests
-using LinearAlgebra
-using Memoize
+using Distributions
+using CSV
+include("./src/solve.jl")
 
+function get_hist_mlb_slate(date::AbstractString)
+    players = CSV.read("./data/mlb_realized_slates/$(date).csv", Tables.rowtable)
+    μ = [player.Projection for player in players]
+    Σ = makeposdef(Symmetric(CSV.read("./data/mlb_realized_slates/$(date)_cov.csv", header=false, types=Float64, Tables.matrix)))
+    games = unique([player.Game for player in players])
+    teams = unique([player.Team for player in players])
+    return MLBSlate(players, games, teams, μ, Σ)
+end
 
-"""
-    write_cov(num::Integer, date::AbstractString)
+files = readdir("./data/mlb_realized_slates")
+files = [file for file in files if ~occursin("cov", file)]
 
-Reads players from CSV given by 'date' parameter and computes covariance matrix.
-'num' parameter dictates how many samples are used for computing standard deviation and
-correlation
-"""
-function write_cov(date::AbstractString)
-    players = CSV.read("./data/slates/$(date).csv", Tables.rowtable)
-    hist = CSV.read("./data/mlb_hist.csv", Tables.rowtable)
-    corr = get_corr(hist, players)
-    σ = get_sigma(hist, players)
-    Σ = Diagonal(σ) * corr * Diagonal(σ)
-    CSV.write("./data/slates/$(date)_cov.csv", Tables.table(Σ), writeheader=false)
+logprob = 0
+for file in files
+    println(file)
+    slate = get_hist_mlb_slate(file[1:10])
+    logprob += logpdf(MvNormal(slate.μ, slate.Σ), [x.Scored for x in slate.players])
+    println("$(file) done.")
+end
+
+for file in files
+    write_cov(file[1:10], hist)
+    println(file)
 end
 
 
-"""
-    get_sigma(hist::AbstractVector{<:NamedTuple}, players::AbstractVector{<:NamedTuple})
+function write_cov(date::AbstractString, hist::AbstractVector{<:NamedTuple})
+    players = CSV.read("./data/mlb_realized_slates/$(date).csv", Tables.rowtable)
+    corr = get_corr(hist, players)
+    σ = get_sigma(hist, players)
+    Σ = Diagonal(σ) * corr * Diagonal(σ)
+    CSV.write("./data/mlb_realized_slates/$(date)_cov.csv", Tables.table(Σ), writeheader=false)
+end
 
-Find standard deviation vector for given players.
-"""
-function get_sigma(hist::AbstractVector{<:NamedTuple}, players::AbstractVector{<:NamedTuple})
+
+function get_sigma(hist, players)
     σ = Vector{Float64}(undef, length(players))
     for (i, player) in enumerate(players)
-        # Find historical score records for player
         records = get_hist_player_records(player, hist)
-        # If there aren't many, use standard deviation of all records matching
-        # the players order and position as a prior.
         if length(records) < 5
             position_records = get_hist_position_records(player.Position, player.Order, hist)
             σ[i] = std([x.Scored - x.Projection for x in position_records])
@@ -46,11 +53,6 @@ function get_sigma(hist::AbstractVector{<:NamedTuple}, players::AbstractVector{<
 end
 
 
-"""
-    get_hist_player_records(hist::AbstractVector{T}, player::NamedTuple) where {T<:NamedTuple}
-
-Find all records in historical data with matching player name
-"""
 function get_hist_player_records(hist::AbstractVector{T}, player::NamedTuple) where {T<:NamedTuple}
     result = T[]
     for record in hist
@@ -62,11 +64,6 @@ function get_hist_player_records(hist::AbstractVector{T}, player::NamedTuple) wh
 end
 
 
-"""
-    get_hist_position_records(hist::AbstractVector{T}, position, order) where {T<:NamedTuple}
-
-Finds all records with given position and batting order
-"""
 function get_hist_position_records(hist::AbstractVector{T}, position, order) where {T<:NamedTuple}
     result = T[]
     for record in hist
@@ -76,7 +73,6 @@ function get_hist_position_records(hist::AbstractVector{T}, position, order) whe
     end
     return result
 end
-
 
 
 """
@@ -101,7 +97,7 @@ function get_corr(hist::AbstractVector{<:NamedTuple}, players::AbstractVector{<:
             end
         end
     end
-    return corr
+    return replace!(corr, NaN => 0.0)
 end
 
 
@@ -114,7 +110,8 @@ If they are on the same team, finds every pair of historical players where:
     - the first has the same position and batting order as player 1
     - the second has the same position and batting order as player 2
     - both players are from the same team on the same date
-Returns the correlation of those players
+Then it finds the 'num' number of pairs with the closest projections to the given players
+and returns their correlation.
 
 Similar process when the players are on opposing teams, except the pairs are from opposing teams on each date.
 """
@@ -132,7 +129,8 @@ function players_corr(hist::AbstractVector{<:NamedTuple}, p1::NamedTuple, p2::Na
         # We need more than 2 so that the degress of freedom of the correlation test is > 0
         return 0.0
     else
-        return correlation_test([x[1].Scored for x in pairs], [x[2].Scored for x in pairs])
+        #return correlation_test([x[1].Scored for x in pairs], [x[2].Scored for x in pairs])
+        return cor([x[1].Scored for x in pairs], [x[2].Scored for x in pairs])
     end
 end
 

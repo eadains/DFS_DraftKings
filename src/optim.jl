@@ -1,5 +1,5 @@
 using JuMP
-using CPLEX
+using Xpress
 using Distributions
 include("types.jl")
 include("opp_teams.jl")
