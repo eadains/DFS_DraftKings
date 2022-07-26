@@ -7,39 +7,88 @@ using Memoize
 
 
 """
+    makeposdef(mat::Symmetric{<:Real})
+
+Transforms a Symmetric real-valued matrix into a positive definite matrix
+Computes eigendecomposition of matrix, sets negative and zero eigenvalues
+to small value (1e-10) and then reconstructs matrix
+"""
+function makeposdef(mat::Symmetric{<:Real})
+    vals = eigvals(mat)
+    vecs = eigvecs(mat)
+    vals[vals.<=1e-10] .= 1e-10
+    return Symmetric(vecs * Diagonal(vals) * vecs')
+end
+
+
+"""
     write_cov(num::Integer, date::AbstractString)
 
 Reads players from CSV given by 'date' parameter and computes covariance matrix.
 'num' parameter dictates how many samples are used for computing standard deviation and
 correlation
 """
-function write_cov(date::AbstractString)
-    players = CSV.read("./data/slates/$(date).csv", Tables.rowtable)
-    hist = CSV.read("./data/mlb_hist.csv", Tables.rowtable)
+function get_mlb_cov(players::AbstractVector{<:NamedTuple}, hist::AbstractVector{<:NamedTuple})
     corr = get_corr(hist, players)
-    σ = get_sigma(hist, players)
+    σ = get_mlb_sigma(hist, players)
     Σ = Diagonal(σ) * corr * Diagonal(σ)
-    CSV.write("./data/slates/$(date)_cov.csv", Tables.table(Σ), writeheader=false)
+    # Return positive definite version of matrix
+    return makeposdef(Symmetric(Σ))
 end
 
 
 """
-    get_sigma(hist::AbstractVector{<:NamedTuple}, players::AbstractVector{<:NamedTuple})
+    get_pga_cov(players::AbstractVector{<:NamedTuple}, hist::AbstractVector{<:NamedTuple})
 
-Find standard deviation vector for given players.
+Get covariance matrix for PGA players
 """
-function get_sigma(hist::AbstractVector{<:NamedTuple}, players::AbstractVector{<:NamedTuple})
+function get_pga_cov(players::AbstractVector{<:NamedTuple}, hist::AbstractVector{<:NamedTuple})
+    σ = get_pga_sigma(hist, players)
+    # Golfers have no meaningful correlation between them, so use the identity matrix
+    Σ = Diagonal(σ) * I * Diagonal(σ)
+    return Σ
+end
+
+
+"""
+    get_mlb_sigma(hist::AbstractVector{<:NamedTuple}, players::AbstractVector{<:NamedTuple})
+
+Find standard deviation vector for given players for MLB.
+"""
+function get_mlb_sigma(hist::AbstractVector{<:NamedTuple}, players::AbstractVector{<:NamedTuple})
     σ = Vector{Float64}(undef, length(players))
     for (i, player) in enumerate(players)
         # Find historical score records for player
-        records = get_hist_player_records(player, hist)
+        records = get_hist_player_records(hist, player)
         # If there aren't many, use standard deviation of all records matching
         # the players order and position as a prior.
         if length(records) < 5
-            position_records = get_hist_position_records(player.Position, player.Order, hist)
-            σ[i] = std([x.Scored - x.Projection for x in position_records])
+            position_records = get_hist_position_records(hist, player.Position, player.Order)
+            σ[i] = std([x.Scored for x in position_records])
         else
-            σ[i] = std([x.Scored - x.Projection for x in records])
+            σ[i] = std([x.Scored for x in records])
+        end
+    end
+    return σ
+end
+
+
+"""
+    get_pga_sigma(hist::AbstractVector{<:NamedTuple}, players::AbstractVector{<:NamedTuple})
+
+Find standard deviation vector for given players for PGA.
+"""
+function get_pga_sigma(hist::AbstractVector{<:NamedTuple}, players::AbstractVector{<:NamedTuple})
+    σ = Vector{Float64}(undef, length(players))
+    for (i, player) in enumerate(players)
+        # Find historical score records for player
+        records = get_hist_player_records(hist, player)
+        # If there aren't many, use standard deviation of all historical
+        # data as a prior
+        if length(records) < 5
+            σ[i] = std([x.Scored for x in hist])
+        else
+            σ[i] = std([x.Scored for x in records])
         end
     end
     return σ

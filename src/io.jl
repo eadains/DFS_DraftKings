@@ -1,22 +1,7 @@
 using Tables
 using CSV
-using LinearAlgebra
 include("types.jl")
-
-
-"""
-    makeposdef(mat::Symmetric{<:Real})
-
-Transforms a Symmetric real-valued matrix into a positive definite matrix
-Computes eigendecomposition of matrix, sets negative and zero eigenvalues
-to small value (1e-10) and then reconstructs matrix
-"""
-function makeposdef(mat::Symmetric{<:Real})
-    vals = eigvals(mat)
-    vecs = eigvecs(mat)
-    vals[vals.<=1e-10] .= 1e-10
-    return Symmetric(vecs * Diagonal(vals) * vecs')
-end
+include("cov.jl")
 
 
 """
@@ -25,9 +10,10 @@ end
 Constructs MLBSlate given a date.
 """
 function get_mlb_slate(date::AbstractString)
-    players = CSV.read("./data/slates/$(date).csv", Tables.rowtable)
+    players = CSV.read("./data/mlb_slates/$(date).csv", Tables.rowtable)
+    hist = CSV.read("./data/mlb_hist.csv", Tables.rowtable)
     μ = [player.Projection for player in players]
-    Σ = makeposdef(Symmetric(CSV.read("./data/slates/$(date)_cov.csv", header=false, types=Float64, Tables.matrix)))
+    Σ = get_mlb_cov(players, hist)
     games = unique([player.Game for player in players])
     teams = unique([player.Team for player in players])
     return MLBSlate(players, games, teams, μ, Σ)
@@ -35,7 +21,21 @@ end
 
 
 """
-    transform_lineup(lineup::JuMP.Containers.DenseAxisArray)
+    get_pga_slate(date::String)
+
+Constructs PGASlate given a date.
+"""
+function get_pga_slate(date::AbstractString)
+    players = CSV.read("./data/pga_slates/$(date).csv", Tables.rowtable)
+    hist = CSV.read("./data/pga_hist.csv", Tables.rowtable)
+    μ = [player.Projection for player in players]
+    Σ = get_pga_cov(players, hist)
+    return PGASlate(players, μ, Σ)
+end
+
+
+"""
+    transform_lineup(slate::MLBSlate, lineup::AbstractVector{<:Integer})
 
 Transforms lineup vector from optimization to a dict mapping between roster position and player ID
 """
@@ -86,29 +86,74 @@ end
 
 
 """
+    transform_lineup(slate::PGASlate, lineup::AbstractVector{<:Integer})
+
+Transforms lineup vector from optimization to a dict mapping between roster position and player ID
+"""
+function transform_lineup(slate::PGASlate, lineup::AbstractVector{<:Integer})
+    # Roster positions to fill
+    positions = Dict{String,Union{Int64,Missing}}(
+        "G1" => missing,
+        "G2" => missing,
+        "G3" => missing,
+        "G4" => missing,
+        "G5" => missing,
+        "G6" => missing
+    )
+    p = length(slate.players)
+    for i in 1:p
+        # If player is selected
+        if value(lineup[i]) == 1
+            player = slate.players[i]
+            # If pitcher, fill open pitcher lost
+            if ismissing(positions["G1"])
+                positions["G1"] = player.ID
+            elseif ismissing(positions["G2"])
+                positions["G2"] = player.ID
+            elseif ismissing(positions["G3"])
+                positions["G3"] = player.ID
+            elseif ismissing(positions["G4"])
+                positions["G4"] = player.ID
+            elseif ismissing(positions["G5"])
+                positions["G5"] = player.ID
+            elseif ismissing(positions["G5"])
+                positions["G5"] = player.ID
+            elseif ismissing(positions["G6"])
+                positions["G6"] = player.ID
+            end
+        end
+    end
+    return positions
+end
+
+
+"""
     write_lineups(lineups::Vector{Dict{String, String}})
 
-Writes multiple tournament lineups to toury_lineups.csv
+Writes multiple tournament lineups to mlb_lineups.csv
 """
-function write_lineups(lineups::AbstractVector{<:AbstractDict{<:AbstractString,<:Union{<:Missing,<:Integer}}})
-    open("./tourny_lineups.csv", "w") do file
+function write_lineups(slate::MLBSlate, lineups::AbstractVector{<:AbstractVector{<:Integer}})
+    open("./mlb_lineups.csv", "w") do file
         println(file, "P,P,C,1B,2B,3B,SS,OF,OF,OF")
         for lineup in lineups
-            println(file, "$(lineup["P1"]),$(lineup["P2"]),$(lineup["C"]),$(lineup["1B"]),$(lineup["2B"]),$(lineup["3B"]),$(lineup["SS"]),$(lineup["OF1"]),$(lineup["OF2"]),$(lineup["OF3"])")
+            lineup_dict = transform_lineup(slate, lineup)
+            println(file, "$(lineup_dict["P1"]),$(lineup_dict["P2"]),$(lineup_dict["C"]),$(lineup_dict["1B"]),$(lineup_dict["2B"]),$(lineup_dict["3B"]),$(lineup_dict["SS"]),$(lineup_dict["OF1"]),$(lineup_dict["OF2"]),$(lineup_dict["OF3"])")
         end
     end
 end
 
 
 """
-    write_lineups(points <: Number, lineup::Dict{String,String})
+    write_lineups(lineups::Vector{Dict{String, String}})
 
-Writes cash game lineup to file with expected points
+Writes multiple tournament lineups to pga_lineups.csv
 """
-function write_lineup(points::Number, lineup::AbstractDict{<:AbstractString,<:Union{<:Missing,<:Integer}})
-    open("./cash_lineup.csv", "w") do file
-        println(file, "Projected Points: $(points)")
-        println(file, "P,P,C,1B,2B,3B,SS,OF,OF,OF")
-        println(file, "$(lineup["P1"]),$(lineup["P2"]),$(lineup["C"]),$(lineup["1B"]),$(lineup["2B"]),$(lineup["3B"]),$(lineup["SS"]),$(lineup["OF1"]),$(lineup["OF2"]),$(lineup["OF3"])")
+function write_lineups(slate::PGASlate, lineups::AbstractVector{<:AbstractVector{<:Integer}})
+    open("./pga_lineups.csv", "w") do file
+        println(file, "G,G,G,G,G,G")
+        for lineup in lineups
+            lineup_dict = transform_lineup(slate, lineup)
+            println(file, "$(lineup_dict["G1"]),$(lineup_dict["G2"]),$(lineup_dict["G3"]),$(lineup_dict["G4"]),$(lineup_dict["G5"]),$(lineup_dict["G6"])")
+        end
     end
 end

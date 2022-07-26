@@ -38,18 +38,34 @@ end
 
 
 """
-    gen_team(slate::Slate)
+    gen_team(slate::MLBSlate)
 
-Given a slate, generates a random opponent team using projected ownership numbers.
+Given a MLBslate, generates a random opponent team using projected ownership numbers.
 Not gauranteed to be a valid team.
 """
-function gen_team(slate::Slate)
+function gen_team(slate::MLBSlate)
     team = Int16[]
     for position in keys(slate.positions)
         indices = find_players(slate, position)
         probs = make_probs(slate, indices)
         append!(team, sample(rng, indices, probs, slate.positions[position], replace=false))
     end
+    return team
+end
+
+
+"""
+    gen_team(slate::PGASlate)
+
+Given a PGASlate, generates a random opponent team using projected ownership numbers.
+Not gauranteed to be a valid team.
+"""
+function gen_team(slate::PGASlate)
+    # There are no positions in Golf, so we just need to select 6 random players
+    # from the entire slate of players
+    indices = 1:length(slate.players)
+    probs = make_probs(slate, indices)
+    team = sample(rng, indices, probs, slate.positions["G"], replace=false)
     return team
 end
 
@@ -75,6 +91,24 @@ function verify_team(slate::MLBSlate, indices::AbstractVector{<:Integer})
         all(values(teams_player_count) .<= 5),
         # Must select players from at least 2 games
         length(keys(games_count)) >= 2
+    ]
+    return all(constraints)
+end
+
+
+"""
+    verify_team(slate::PGASlate, indices::AbstractVector{<:Integer})
+
+Given a PGA slate and indices representing players selected for a lineup, determine if those players
+form a valid lineup
+"""
+function verify_team(slate::PGASlate, indices::AbstractVector{<:Integer})
+    team = slate.players[indices]
+    constraints = [
+        # Must select 6 golfers
+        length(team) == 6,
+        # Salary must be under 50000, but assume people use most of it
+        48000 <= sum([x.Salary for x in team]) <= 50000
     ]
     return all(constraints)
 end

@@ -6,54 +6,6 @@ include("opp_teams.jl")
 
 
 """
-    do_optim(data::MLBSlate)
-
-Runs optimization for cash games
-"""
-function do_optim(slate::MLBSlate)
-    model = Model(Xpress.Optimizer)
-
-    p = length(slate.players)
-    # Players variable
-    @variable(model, x[1:p], binary = true)
-    # Games variable
-    @variable(model, g[slate.games], binary = true)
-
-    # Total salary must be <= $50,000
-    @constraint(model, sum(slate.players[i].Salary * x[i] for i = 1:p) <= 50000)
-    # Must select 10 total players
-    @constraint(model, sum(x) == 10)
-    # Constraints for each position
-    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "P") == 2)
-    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "C") == 1)
-    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "1B") == 1)
-    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "2B") == 1)
-    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "3B") == 1)
-    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "SS") == 1)
-    @constraint(model, sum(x[i] for i = 1:p if slate.players[i].Position == "OF") == 3)
-
-    for team in slate.teams
-        # Maximum of 5 batters from each team
-        @constraint(model, sum(x[i] for i = 1:p if (slate.players[i].Position != "P") && (slate.players[i].Team == team)) <= 5)
-    end
-
-    for game in slate.games
-        # If no players are selected from a game z is set to 0
-        @constraint(model, g[game] <= sum(x[i] for i = 1:p if slate.players[i].Game == game))
-    end
-    # Must select players from at least 2 games
-    @constraint(model, sum(g) >= 2)
-
-    # Maximize projected fantasy points
-    @objective(model, Max, sum(slate.players[i].Projection * x[i] for i = 1:p))
-
-    optimize!(model)
-    println(termination_status(model))
-    return (objective_value(model), round.(Int, value.(x)))
-end
-
-
-"""
     do_optim(data::MLBTournyOptimData)
 
 Runs optimization for tournaments
@@ -110,11 +62,45 @@ end
 
 
 """
-    lambda_max(data::MLBTournyOptimData)
+    do_optim(data::PGATournyOptimData)
+
+Runs optimization for tournaments
+"""
+function do_optim(data::PGATournyOptimData, λ::Real, past_lineups::AbstractVector{<:AbstractVector{<:Integer}})
+    model = Model(Xpress.Optimizer)
+
+    p = length(data.slate.players)
+    # Players variable
+    @variable(model, x[1:p], binary = true)
+
+    # Total salary must be <= $50,000
+    @constraint(model, sum(data.slate.players[i].Salary * x[i] for i = 1:p) <= 50000)
+    # Must select 6 total players
+    @constraint(model, sum(x) == 6)
+
+    # If there are any past lineups, ensure that the current lineup doesn't overlap too much with any of them
+    for past in past_lineups
+        @constraint(model, sum(x[i] * past[i] for i = 1:p) <= data.overlap)
+    end
+
+    mu_x = @expression(model, x' * data.slate.μ)
+    var_x = @expression(model, x' * data.slate.Σ * x - 2 * x' * data.opp_cov)
+    # Maximize projected fantasy points
+    @objective(model, Max, mu_x + λ * var_x)
+
+    optimize!(model)
+    println(termination_status(model))
+    # Return optimization result vector, as well as estimated probability of exceeding 220 points
+    return (round.(Int, value.(x)), payoff(value(mu_x), value(var_x), data.order_stats_mu, data.order_stats_sigma, data.payoffs))
+end
+
+
+"""
+    lambda_max(data::TournyOptimData, past_lineups::AbstractVector{<:AbstractVector{<:Integer}})
 
 Does optimization over range of λ values and returns the lineup with the highest objective function.
 """
-function lambda_max(data::MLBTournyOptimData, past_lineups::AbstractVector{<:AbstractVector{<:Integer}})
+function lambda_max(data::TournyOptimData, past_lineups::AbstractVector{<:AbstractVector{<:Integer}})
     # I've found that lambdas from around 0 to 0.05 are selected, with most being 0.03
     lambdas = 0.01:0.01:0.08
     w_star = Vector{Tuple{Vector{Int64},Float64}}(undef, length(lambdas))
@@ -132,12 +118,12 @@ end
 
 
 """
-    get_lineups(N::Integer)
+    tourny_lineups(data::TournyOptimData, N::Integer)
 
 Solves the tournament optimization problem with N entries.
 Appends lineups to OptimData pastlineups array
 """
-function tourny_lineups(data::MLBTournyOptimData, N::Integer)
+function tourny_lineups(data::TournyOptimData, N::Integer)
     past_lineups = Vector{Int64}[]
     for n in 1:N
         println(n)
