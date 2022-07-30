@@ -3,18 +3,20 @@ import numpy as np
 import requests
 import json
 from difflib import get_close_matches
+import os
 
 
 def get_mlb_data(periodId):
+    # IF THERE ARE EVER ANY STRANGE DATA ERRORS, UPDATE THESE
     cookies = {
         "_fbp": "fb.1.1652982905489.473636789",
         ".ASPXANONYMOUS": "7FPJC4O72AEkAAAANzJhYzQyZTAtMjBlMC00Y2U3LTg0NDgtNGNlYmQ5NzI2Y2Vj0",
-        ".DOTNETNUKE": "84C02EC808A4608F4C931C9E1E01C1C0C38494594A271ACEEB55875FB4A4D61227F4E401C11511B9E0A67F47F89591F231BCD694CA19BC48DDDF0B0DD616909A4D9689F9BEA949EDD97289D031B87B90E4744D6F139FA38FEFA53B893E68D08B9F9EFE5224E87FE2DA6A5EA6517FA7DE979BD61500AF9482F427A0A15B5BC187C8B545AB",
-        "_gid": "GA1.2.1831468145.1658287386",
+        "_gid": "GA1.2.1484366880.1658786233",
         "dnn_IsMobile": "False",
+        ".DOTNETNUKE": "2CBD48D7E6FEF2832140403BECBE9ECFC1100D5A638A241F9EA9A86E9614E9AD7D675F33B638CF6883EDE9CFD649CB12603BDF9491B5B18C1054918878F28B3B7B403EC45C6793BE92CA4683E005CD0E3B9F075FF0D874620916241664AA37D46DFA8E8D92D88C8E8CE48B8CEC6F3E7CF9D8691E89046D198866A11A08D306EA60C043AB",
         "language": "en-US",
-        "_ga": "GA1.2.1013963682.1652982905",
-        "_ga_EXD94TY7GX": "GS1.1.1658331839.119.1.1658331995.0",
+        "_ga": "GA1.1.1013963682.1652982905",
+        "_ga_EXD94TY7GX": "GS1.1.1659135584.143.1.1659136191.0",
     }
 
     headers = {
@@ -22,9 +24,9 @@ def get_mlb_data(periodId):
         "Accept-Language": "en-US,en;q=0.9",
         "Connection": "keep-alive",
         # Requests sorts cookies= alphabetically
-        # 'Cookie': '_fbp=fb.1.1652982905489.473636789; .ASPXANONYMOUS=7FPJC4O72AEkAAAANzJhYzQyZTAtMjBlMC00Y2U3LTg0NDgtNGNlYmQ5NzI2Y2Vj0; .DOTNETNUKE=84C02EC808A4608F4C931C9E1E01C1C0C38494594A271ACEEB55875FB4A4D61227F4E401C11511B9E0A67F47F89591F231BCD694CA19BC48DDDF0B0DD616909A4D9689F9BEA949EDD97289D031B87B90E4744D6F139FA38FEFA53B893E68D08B9F9EFE5224E87FE2DA6A5EA6517FA7DE979BD61500AF9482F427A0A15B5BC187C8B545AB; _gid=GA1.2.1831468145.1658287386; dnn_IsMobile=False; language=en-US; _ga=GA1.2.1013963682.1652982905; _ga_EXD94TY7GX=GS1.1.1658331839.119.1.1658331995.0',
+        # 'Cookie': '_fbp=fb.1.1652982905489.473636789; .ASPXANONYMOUS=7FPJC4O72AEkAAAANzJhYzQyZTAtMjBlMC00Y2U3LTg0NDgtNGNlYmQ5NzI2Y2Vj0; _gid=GA1.2.1484366880.1658786233; dnn_IsMobile=False; .DOTNETNUKE=2CBD48D7E6FEF2832140403BECBE9ECFC1100D5A638A241F9EA9A86E9614E9AD7D675F33B638CF6883EDE9CFD649CB12603BDF9491B5B18C1054918878F28B3B7B403EC45C6793BE92CA4683E005CD0E3B9F075FF0D874620916241664AA37D46DFA8E8D92D88C8E8CE48B8CEC6F3E7CF9D8691E89046D198866A11A08D306EA60C043AB; language=en-US; _ga=GA1.1.1013963682.1652982905; _ga_EXD94TY7GX=GS1.1.1659135584.143.1.1659136191.0',
         "DNT": "1",
-        "Referer": "https://www.linestarapp.com/Projections",
+        "Referer": "https://www.linestarapp.com/Projections/Sport/MLB/Site/DraftKings/PID/1960",
         "Sec-Fetch-Dest": "empty",
         "Sec-Fetch-Mode": "cors",
         "Sec-Fetch-Site": "same-origin",
@@ -35,7 +37,7 @@ def get_mlb_data(periodId):
     }
 
     params = {
-        "periodId": periodId,
+        "periodId": "1960",
         "site": "1",
         "sport": "3",
     }
@@ -111,20 +113,20 @@ def get_mlb_realized_slate(periodId):
                 if 31 <= note["Alert"] <= 39:
                     player["BattingOrder"] = note["Alert"] - 30
                     found_order = True
-            # If there is not note for batting order, its 0
+            # If there is not note for batting order, its NaN
             if not found_order:
-                player["BattingOrder"] = 0
+                player["BattingOrder"] = None
         try:
             # Adding projected ownership
             player["ProjOwned"] = proj_owned[player["PID"]]
         except KeyError:
-            player["ProjOwned"] = 0
+            player["ProjOwned"] = None
 
         try:
             # Adding realized ownership
             player["actual_owned"] = actual_owned[player["PID"]]
         except KeyError:
-            player["actual_owned"] = 0
+            player["actual_owned"] = None
 
     # Make dictionaries with data we need
     slate_players = [
@@ -153,6 +155,7 @@ def get_mlb_realized_slate(periodId):
     frame["Game"] = frame["Game"].str.split(" ", expand=True)[0]
     # Drop non-pitcher players with 0 batting order
     frame = frame.drop(frame[(frame["Position"] != "P") & (frame["Order"] == 0)].index)
+    frame = frame.dropna()
     return (date, frame)
 
 
@@ -173,12 +176,12 @@ def get_mlb_proj_slate(periodId):
     # Get SlateId for finding ownership data
     slate_id = [x["SlateId"] for x in main_slate["SlateGames"]][0]
     main_slate_game_ids = [x["GameId"] for x in main_slate["SlateGames"]]
-    # Filter players to be those in games in the main slate, and have greater than
-    # 1 point projected. This is to filter down on the number of players
+    # Filter players to be those in games in the main slate, and have >0
+    # projected points
     slate_players = [
         x
         for x in data["Ownership"]["Salaries"]
-        if (x["GID"] in main_slate_game_ids) & (x["AggProj"] > 1)
+        if (x["GID"] in main_slate_game_ids) & (x["AggProj"] > 0)
     ]
     # Construct dictionary relating player IDs to projected ownership
     player_ids = [x["PID"] for x in slate_players]
@@ -204,13 +207,13 @@ def get_mlb_proj_slate(periodId):
                     found_order = True
             # If there is not note for batting order, its 0
             if not found_order:
-                player["BattingOrder"] = 0
+                player["BattingOrder"] = None
         try:
             # Adding projected ownership
             player["ProjOwned"] = proj_owned[player["PID"]]
         except KeyError:
             # If nothing found, assume 0
-            player["ProjOwned"] = 0
+            player["ProjOwned"] = None
 
     # Make dictionaries with data we need
     slate_players = [
@@ -237,6 +240,7 @@ def get_mlb_proj_slate(periodId):
     frame["Game"] = frame["Game"].str.split(" ", expand=True)[0]
     # Drop non-pitcher players with 0 batting order
     frame = frame.drop(frame[(frame["Position"] != "P") & (frame["Order"] == 0)].index)
+    frame = frame.dropna()
     return (date, frame)
 
 
@@ -288,3 +292,4 @@ if __name__ == "__main__":
     # Just drop any mysterious NA rows and hope for the best
     slate = slate.dropna()
     slate.to_csv(f"./data/mlb_slates/{date}.csv", index=False)
+    os.remove("./data/mlb_slates/DKSalaries.csv")

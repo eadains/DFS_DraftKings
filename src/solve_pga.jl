@@ -9,33 +9,37 @@ println("Getting slate")
 slate = get_pga_slate("2022-07-28")
 # SET PARAMETER: payoffs
 payoffs = Tuple{Int64,Float64}[
-    (1, 1500.0),
-    (2, 750.0),
-    (3, 300.0),
-    (4, 150.0),
-    (5, 100.0),
-    (6, 75.0),
-    (7, 60.0),
-    (9, 50.0),
-    (11, 40.0),
-    (15, 30.0),
-    (20, 25.0),
-    (26, 20.0),
-    (36, 15.0),
-    (46, 10.0),
-    (61, 8.0),
-    (81, 6.0),
-    (106, 5.0),
-    (161, 4.0),
-    (276, 3.0),
-    (551, 2.0),
-    (1266, 1.50),
-    (2716, 1.0),
-    (8186, 0.0)
+    (1, 4000.0),
+    (2, 1500.0),
+    (3, 1000.0),
+    (4, 750.0),
+    (5, 500.0),
+    (6, 250.0),
+    (7, 200.0),
+    (9, 150.0),
+    (11, 100.0),
+    (16, 75.0),
+    (21, 60.0),
+    (31, 50.0),
+    (41, 40.0),
+    (51, 30.0),
+    (66, 25.0),
+    (86, 20.0),
+    (111, 15.0),
+    (141, 10.0),
+    (186, 8.0),
+    (241, 6.0),
+    (316, 5),
+    (436, 4.0),
+    (691, 3.0),
+    (1331, 2.0),
+    (3046, 1.5),
+    (6616, 1.0),
+    (19976, 0.0)
 ]
 println("Making optim data")
 # SET PARAMETER: Overlap, total entries, and samples
-data = PGATournyOptimData(slate, payoffs, 3, 35600, 250)
+data = PGATournyOptimData(slate, payoffs, 4, 95100, 250)
 # SET PARAMETER: number of lineups to generate
 println("Getting lineups")
 lineups = tourny_lineups(data, 50)
