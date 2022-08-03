@@ -11,12 +11,13 @@ def get_mlb_data(periodId):
     cookies = {
         "_fbp": "fb.1.1652982905489.473636789",
         ".ASPXANONYMOUS": "7FPJC4O72AEkAAAANzJhYzQyZTAtMjBlMC00Y2U3LTg0NDgtNGNlYmQ5NzI2Y2Vj0",
-        "_gid": "GA1.2.1484366880.1658786233",
-        "dnn_IsMobile": "False",
         ".DOTNETNUKE": "2CBD48D7E6FEF2832140403BECBE9ECFC1100D5A638A241F9EA9A86E9614E9AD7D675F33B638CF6883EDE9CFD649CB12603BDF9491B5B18C1054918878F28B3B7B403EC45C6793BE92CA4683E005CD0E3B9F075FF0D874620916241664AA37D46DFA8E8D92D88C8E8CE48B8CEC6F3E7CF9D8691E89046D198866A11A08D306EA60C043AB",
+        "dnn_IsMobile": "False",
         "language": "en-US",
+        "_gid": "GA1.2.1856986867.1659476434",
+        "_gat_gtag_UA_106589727_1": "1",
         "_ga": "GA1.1.1013963682.1652982905",
-        "_ga_EXD94TY7GX": "GS1.1.1659135584.143.1.1659136191.0",
+        "_ga_EXD94TY7GX": "GS1.1.1659476433.145.1.1659476490.0",
     }
 
     headers = {
@@ -24,9 +25,9 @@ def get_mlb_data(periodId):
         "Accept-Language": "en-US,en;q=0.9",
         "Connection": "keep-alive",
         # Requests sorts cookies= alphabetically
-        # 'Cookie': '_fbp=fb.1.1652982905489.473636789; .ASPXANONYMOUS=7FPJC4O72AEkAAAANzJhYzQyZTAtMjBlMC00Y2U3LTg0NDgtNGNlYmQ5NzI2Y2Vj0; _gid=GA1.2.1484366880.1658786233; dnn_IsMobile=False; .DOTNETNUKE=2CBD48D7E6FEF2832140403BECBE9ECFC1100D5A638A241F9EA9A86E9614E9AD7D675F33B638CF6883EDE9CFD649CB12603BDF9491B5B18C1054918878F28B3B7B403EC45C6793BE92CA4683E005CD0E3B9F075FF0D874620916241664AA37D46DFA8E8D92D88C8E8CE48B8CEC6F3E7CF9D8691E89046D198866A11A08D306EA60C043AB; language=en-US; _ga=GA1.1.1013963682.1652982905; _ga_EXD94TY7GX=GS1.1.1659135584.143.1.1659136191.0',
+        # 'Cookie': '_fbp=fb.1.1652982905489.473636789; .ASPXANONYMOUS=7FPJC4O72AEkAAAANzJhYzQyZTAtMjBlMC00Y2U3LTg0NDgtNGNlYmQ5NzI2Y2Vj0; .DOTNETNUKE=2CBD48D7E6FEF2832140403BECBE9ECFC1100D5A638A241F9EA9A86E9614E9AD7D675F33B638CF6883EDE9CFD649CB12603BDF9491B5B18C1054918878F28B3B7B403EC45C6793BE92CA4683E005CD0E3B9F075FF0D874620916241664AA37D46DFA8E8D92D88C8E8CE48B8CEC6F3E7CF9D8691E89046D198866A11A08D306EA60C043AB; dnn_IsMobile=False; language=en-US; _gid=GA1.2.1856986867.1659476434; _gat_gtag_UA_106589727_1=1; _ga=GA1.1.1013963682.1652982905; _ga_EXD94TY7GX=GS1.1.1659476433.145.1.1659476490.0',
         "DNT": "1",
-        "Referer": "https://www.linestarapp.com/Projections/Sport/MLB/Site/DraftKings/PID/1960",
+        "Referer": "https://www.linestarapp.com/Projections/Sport/MLB/Site/DraftKings/PID/1964",
         "Sec-Fetch-Dest": "empty",
         "Sec-Fetch-Mode": "cors",
         "Sec-Fetch-Site": "same-origin",
@@ -37,7 +38,7 @@ def get_mlb_data(periodId):
     }
 
     params = {
-        "periodId": "1960",
+        "periodId": periodId,
         "site": "1",
         "sport": "3",
     }
@@ -176,12 +177,12 @@ def get_mlb_proj_slate(periodId):
     # Get SlateId for finding ownership data
     slate_id = [x["SlateId"] for x in main_slate["SlateGames"]][0]
     main_slate_game_ids = [x["GameId"] for x in main_slate["SlateGames"]]
-    # Filter players to be those in games in the main slate, and have >0
-    # projected points
+    # Filter players to be those in games in the main slate, and have >1
+    # projected points.
     slate_players = [
         x
         for x in data["Ownership"]["Salaries"]
-        if (x["GID"] in main_slate_game_ids) & (x["AggProj"] > 0)
+        if (x["GID"] in main_slate_game_ids) & (x["AggProj"] > 1)
     ]
     # Construct dictionary relating player IDs to projected ownership
     player_ids = [x["PID"] for x in slate_players]
@@ -291,5 +292,7 @@ if __name__ == "__main__":
 
     # Just drop any mysterious NA rows and hope for the best
     slate = slate.dropna()
+    # Ensure batting order is integer
+    slate["Order"] = slate["Order"].astype(int)
     slate.to_csv(f"./data/mlb_slates/{date}.csv", index=False)
     os.remove("./data/mlb_slates/DKSalaries.csv")

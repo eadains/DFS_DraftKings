@@ -5,7 +5,7 @@ import pandas as pd
 
 # If we get too far into the future, gonna need to change this value
 # to a more recent one
-data = get_mlb_data(1953)
+data = get_mlb_data(1963)
 ids = {x["StartDate"][:10]: x["Id"] for x in data["Periods"]}
 
 most_recent = datetime.date(1900, 1, 1)

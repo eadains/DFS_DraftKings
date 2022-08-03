@@ -6,8 +6,9 @@ include("opp_teams.jl")
 
 println("Getting slate")
 # SET PARAMETER: slate date
-slate = get_mlb_slate("2022-07-29")
+slate = get_mlb_slate("2022-08-02")
 # SET PARAMETER: payoffs
+# 15k $0.50 tournament
 payoffs = Tuple{Int64,Float64}[
     (1, 1500.0),
     (2, 750.0),
@@ -31,7 +32,7 @@ payoffs = Tuple{Int64,Float64}[
     (551, 2.0),
     (1266, 1.5),
     (2716, 1.0),
-    (8186, 1.0)
+    (8186, 0.0)
 ]
 println("Making optim data")
 # SET PARAMETER: Overlap, total entries, and samples

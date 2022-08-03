@@ -145,7 +145,7 @@ def get_pga_proj_slate(periodId):
     slate_players = [
         x
         for x in data["Ownership"]["Salaries"]
-        if (x["GID"] in main_slate_game_ids) & (x["AggProj"] > 0)
+        if (x["GID"] in main_slate_game_ids) & (x["AggProj"] > 1)
     ]
     # Construct dictionary relating player IDs to projected ownership
     player_ids = [x["PID"] for x in slate_players]
@@ -202,7 +202,7 @@ if __name__ == "__main__":
     )
     # Sometimes multiple name matches are found, so merging causes duplicate rows
     slate = slate.drop_duplicates(subset=["Name"])
-    slate = slate[["Name", "ID", "Salary", "Projection", "pOwn",]]
+    slate = slate[["Name", "ID", "Salary", "Projection", "pOwn"]]
 
     # Raise errors if there are data consistency issues
     if len(slate) > len(ls_slate):
