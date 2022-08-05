@@ -213,7 +213,7 @@ def get_mlb_proj_slate(periodId):
             "Team": x["PTEAM"],
             "Opponent": x["OTEAM"],
             "Order": x["BattingOrder"],
-            "Projection": x["AggProj"],
+            "Projection": x["PP"],
             "pOwn": x["ProjOwned"],
         }
         for x in slate_players
@@ -274,8 +274,6 @@ if __name__ == "__main__":
             "Merged slate is longer than Linestar slate. Possible issues with duplicate rows."
         )
 
-    # Just drop any mysterious NA rows and hope for the best
-    slate = slate.dropna()
     # Ensure batting order is integer
     slate["Order"] = slate["Order"].astype(int)
     slate.to_csv(f"./data/mlb_slates/{date}.csv", index=False)

@@ -6,34 +6,36 @@ include("opp_teams.jl")
 
 println("Getting slate")
 # SET PARAMETER: slate date
-slate = get_mlb_slate("2022-08-04")
+slate = get_mlb_slate("2022-08-05")
 # SET PARAMETER: payoffs
 payoffs = Tuple{Int64,Float64}[
-    (1, 1000.0),
-    (2, 500.0),
-    (3, 250.0),
+    (1, 1500.0),
+    (2, 750.0),
+    (3, 300.0),
     (4, 150.0),
     (5, 100.0),
     (6, 75.0),
-    (7, 50.0),
-    (9, 30.0),
-    (11, 25.0),
-    (15, 20.0),
-    (20, 15.0),
-    (26, 10.0),
-    (36, 8.0),
-    (46, 6.0),
-    (61, 5.0),
-    (101, 4.0),
-    (196, 3.0),
-    (406, 2.0),
-    (866, 1.5),
-    (1812, 1.0),
-    (5468, 0.0)
+    (7, 60.0),
+    (9, 50.0),
+    (11, 40.0),
+    (15, 30.0),
+    (20, 25.0),
+    (26, 20.0),
+    (36, 15.0),
+    (46, 10.0),
+    (61, 8.0),
+    (81, 6.0),
+    (106, 5.0),
+    (161, 4.0),
+    (276, 3.0),
+    (551, 2.0),
+    (1266, 1.50),
+    (2716, 1.0),
+    (8186, 0.0)
 ]
 println("Making optim data")
 # SET PARAMETER: Overlap, total entries, and samples
-data = MLBTournyOptimData(slate, payoffs, 7, 23700, 250)
+data = MLBTournyOptimData(slate, payoffs, 7, 35600, 250)
 println("Getting lineups")
 # SET PARAMETER: number of lineups to generate
 lineups = tourny_lineups(data, 50)

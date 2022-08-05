@@ -99,13 +99,13 @@ def get_pga_realized_slate(periodId):
             # Adding projected ownership
             player["ProjOwned"] = proj_owned[player["PID"]]
         except KeyError:
-            player["ProjOwned"] = None
+            player["ProjOwned"] = 0.0
 
         try:
             # Adding realized ownership
             player["actual_owned"] = actual_owned[player["PID"]]
         except KeyError:
-            player["actual_owned"] = None
+            player["actual_owned"] = 0.0
 
     # Make dictionaries with data we need
     slate_players = [
@@ -145,7 +145,7 @@ def get_pga_proj_slate(periodId):
     slate_players = [
         x
         for x in data["Ownership"]["Salaries"]
-        if (x["GID"] in main_slate_game_ids) & (x["AggProj"] > 1)
+        if (x["GID"] in main_slate_game_ids) & (x["PP"] > 0)
     ]
     # Construct dictionary relating player IDs to projected ownership
     player_ids = [x["PID"] for x in slate_players]
@@ -161,14 +161,14 @@ def get_pga_proj_slate(periodId):
             player["ProjOwned"] = proj_owned[player["PID"]]
         except KeyError:
             # If nothing found, assume NaN
-            player["ProjOwned"] = None
+            player["ProjOwned"] = 0.0
 
     # Make dictionaries with data we need
     slate_players = [
         {
             "Name": x["Name"],
             "Salary": x["SAL"],
-            "Projection": x["AggProj"],
+            "Projection": x["PP"],
             "pOwn": x["ProjOwned"],
         }
         for x in slate_players
