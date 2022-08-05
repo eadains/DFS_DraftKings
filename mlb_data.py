@@ -108,26 +108,21 @@ def get_mlb_realized_slate(periodId):
         # Otherwise, alert numbers from player notes between 31 and 39
         # inclusive denote a players batting order
         else:
-            found_order = False
             parsed_notes = json.loads(player["Notes"])
             for note in parsed_notes:
                 if 31 <= note["Alert"] <= 39:
                     player["BattingOrder"] = note["Alert"] - 30
-                    found_order = True
-            # If there is not note for batting order, its NaN
-            if not found_order:
-                player["BattingOrder"] = None
         try:
             # Adding projected ownership
             player["ProjOwned"] = proj_owned[player["PID"]]
         except KeyError:
-            player["ProjOwned"] = None
+            player["ProjOwned"] = 0.0
 
         try:
             # Adding realized ownership
             player["actual_owned"] = actual_owned[player["PID"]]
         except KeyError:
-            player["actual_owned"] = None
+            player["actual_owned"] = 0.0
 
     # Make dictionaries with data we need
     slate_players = [
@@ -154,9 +149,6 @@ def get_mlb_realized_slate(periodId):
     frame["Position"] = frame["Position"].str.split("/", expand=True)[0]
     # Extract Game string
     frame["Game"] = frame["Game"].str.split(" ", expand=True)[0]
-    # Drop non-pitcher players with 0 batting order
-    frame = frame.drop(frame[(frame["Position"] != "P") & (frame["Order"] == 0)].index)
-    frame = frame.dropna()
     return (date, frame)
 
 
@@ -177,12 +169,12 @@ def get_mlb_proj_slate(periodId):
     # Get SlateId for finding ownership data
     slate_id = [x["SlateId"] for x in main_slate["SlateGames"]][0]
     main_slate_game_ids = [x["GameId"] for x in main_slate["SlateGames"]]
-    # Filter players to be those in games in the main slate, and have >1
+    # Filter players to be those in games in the main slate, and have >0
     # projected points.
     slate_players = [
         x
         for x in data["Ownership"]["Salaries"]
-        if (x["GID"] in main_slate_game_ids) & (x["AggProj"] > 1)
+        if (x["GID"] in main_slate_game_ids) & (x["PP"] > 0)
     ]
     # Construct dictionary relating player IDs to projected ownership
     player_ids = [x["PID"] for x in slate_players]
@@ -200,21 +192,16 @@ def get_mlb_proj_slate(periodId):
         # Otherwise, alert numbers from player notes between 31 and 39 inclusive
         # denote a players batting order
         else:
-            found_order = False
             parsed_notes = json.loads(player["Notes"])
             for note in parsed_notes:
                 if 31 <= note["Alert"] <= 39:
                     player["BattingOrder"] = note["Alert"] - 30
-                    found_order = True
-            # If there is not note for batting order, its 0
-            if not found_order:
-                player["BattingOrder"] = None
         try:
             # Adding projected ownership
             player["ProjOwned"] = proj_owned[player["PID"]]
         except KeyError:
             # If nothing found, assume 0
-            player["ProjOwned"] = None
+            player["ProjOwned"] = 0.0
 
     # Make dictionaries with data we need
     slate_players = [
@@ -239,9 +226,6 @@ def get_mlb_proj_slate(periodId):
     frame["Position"] = frame["Position"].str.split("/", expand=True)[0]
     # Extract Game string
     frame["Game"] = frame["Game"].str.split(" ", expand=True)[0]
-    # Drop non-pitcher players with 0 batting order
-    frame = frame.drop(frame[(frame["Position"] != "P") & (frame["Order"] == 0)].index)
-    frame = frame.dropna()
     return (date, frame)
 
 

@@ -6,8 +6,9 @@ include("opp_teams.jl")
 
 # SET PARAMETER: slate date
 println("Getting slate")
-slate = get_pga_slate("2022-07-28")
+slate = get_pga_slate("2022-08-04")
 # SET PARAMETER: payoffs
+# 40k 95100 entry contest
 payoffs = Tuple{Int64,Float64}[
     (1, 4000.0),
     (2, 1500.0),
