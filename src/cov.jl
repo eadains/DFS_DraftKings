@@ -64,9 +64,9 @@ function get_mlb_sigma(hist::AbstractVector{<:NamedTuple}, players::AbstractVect
         # the players order and position as a prior.
         if length(records) < 5
             position_records = get_hist_position_records(hist, player.Position, player.Order)
-            σ[i] = std([x.Scored - x.Projection for x in position_records])
+            σ[i] = std([x.Scored for x in position_records])
         else
-            σ[i] = std([x.Scored - x.Projection for x in records])
+            σ[i] = std([x.Scored for x in records])
         end
     end
     return σ
@@ -86,9 +86,9 @@ function get_pga_sigma(hist::AbstractVector{<:NamedTuple}, players::AbstractVect
         # If there aren't many, use standard deviation of all historical
         # data as a prior
         if length(records) < 5
-            σ[i] = std([x.Scored - x.Projection for x in hist])
+            σ[i] = std([x.Scored for x in hist])
         else
-            σ[i] = std([x.Scored - x.Projection for x in records])
+            σ[i] = std([x.Scored for x in records])
         end
     end
     return σ
@@ -181,7 +181,7 @@ function players_corr(hist::AbstractVector{<:NamedTuple}, p1::NamedTuple, p2::Na
         # We need more than 2 so that the degress of freedom of the correlation test is > 0
         return 0.0
     else
-        return correlation_test([x[1].Scored - x[1].Projection for x in pairs], [x[2].Scored - x[2].Projection for x in pairs])
+        return correlation_test([x[1].Scored for x in pairs], [x[2].Scored for x in pairs])
     end
 end
 

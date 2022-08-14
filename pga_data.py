@@ -168,7 +168,7 @@ def get_pga_proj_slate(periodId):
         {
             "Name": x["Name"],
             "Salary": x["SAL"],
-            "Projection": x["PP"],
+            "Projection": x["AggProj"],
             "pOwn": x["ProjOwned"],
         }
         for x in slate_players

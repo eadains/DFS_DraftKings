@@ -6,7 +6,7 @@ include("opp_teams.jl")
 
 # SET PARAMETER: slate date
 println("Getting slate")
-slate = get_pga_slate("2022-08-04")
+slate = get_pga_slate("2022-08-11")
 # SET PARAMETER: payoffs
 # 40k 95100 entry contest
 payoffs = Tuple{Int64,Float64}[
@@ -40,7 +40,7 @@ payoffs = Tuple{Int64,Float64}[
 ]
 println("Making optim data")
 # SET PARAMETER: Overlap, total entries, and samples
-data = PGATournyOptimData(slate, payoffs, 4, 95100, 250)
+data = PGATournyOptimData(slate, payoffs, 4, 95124, 250)
 # SET PARAMETER: number of lineups to generate
 println("Getting lineups")
 lineups = tourny_lineups(data, 50)
