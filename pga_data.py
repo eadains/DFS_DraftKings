@@ -3,38 +3,10 @@ import numpy as np
 import requests
 from difflib import get_close_matches
 import os
+from config import cookies, headers
 
 
 def get_pga_data(periodId):
-    # IF THERE ARE EVER ANY STRANGE DATA ERRORS, UPDATE THESE
-    cookies = {
-        "_fbp": "fb.1.1652982905489.473636789",
-        ".ASPXANONYMOUS": "7FPJC4O72AEkAAAANzJhYzQyZTAtMjBlMC00Y2U3LTg0NDgtNGNlYmQ5NzI2Y2Vj0",
-        "_gid": "GA1.2.1484366880.1658786233",
-        "dnn_IsMobile": "False",
-        ".DOTNETNUKE": "2CBD48D7E6FEF2832140403BECBE9ECFC1100D5A638A241F9EA9A86E9614E9AD7D675F33B638CF6883EDE9CFD649CB12603BDF9491B5B18C1054918878F28B3B7B403EC45C6793BE92CA4683E005CD0E3B9F075FF0D874620916241664AA37D46DFA8E8D92D88C8E8CE48B8CEC6F3E7CF9D8691E89046D198866A11A08D306EA60C043AB",
-        "language": "en-US",
-        "_ga": "GA1.1.1013963682.1652982905",
-        "_ga_EXD94TY7GX": "GS1.1.1659135584.143.1.1659136191.0",
-    }
-
-    headers = {
-        "Accept": "application/json, text/plain, */*",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Connection": "keep-alive",
-        # Requests sorts cookies= alphabetically
-        # 'Cookie': '_fbp=fb.1.1652982905489.473636789; .ASPXANONYMOUS=7FPJC4O72AEkAAAANzJhYzQyZTAtMjBlMC00Y2U3LTg0NDgtNGNlYmQ5NzI2Y2Vj0; _gid=GA1.2.1484366880.1658786233; dnn_IsMobile=False; .DOTNETNUKE=2CBD48D7E6FEF2832140403BECBE9ECFC1100D5A638A241F9EA9A86E9614E9AD7D675F33B638CF6883EDE9CFD649CB12603BDF9491B5B18C1054918878F28B3B7B403EC45C6793BE92CA4683E005CD0E3B9F075FF0D874620916241664AA37D46DFA8E8D92D88C8E8CE48B8CEC6F3E7CF9D8691E89046D198866A11A08D306EA60C043AB; language=en-US; _ga=GA1.1.1013963682.1652982905; _ga_EXD94TY7GX=GS1.1.1659135584.143.1.1659136191.0',
-        "DNT": "1",
-        "Referer": "https://www.linestarapp.com/Projections/Sport/MLB/Site/DraftKings/PID/1960",
-        "Sec-Fetch-Dest": "empty",
-        "Sec-Fetch-Mode": "cors",
-        "Sec-Fetch-Site": "same-origin",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36",
-        "sec-ch-ua": '".Not/A)Brand";v="99", "Google Chrome";v="103", "Chromium";v="103"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Windows"',
-    }
-
     params = {
         "periodId": periodId,
         "site": "1",

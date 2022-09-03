@@ -50,14 +50,17 @@ function do_optim(data::MLBTournyOptimData, λ::Real, past_lineups::AbstractVect
     end
 
     mu_x = @expression(model, x' * data.slate.μ)
-    var_x = @expression(model, x' * data.slate.Σ * x - 2 * x' * data.opp_cov)
+    #var_x = @expression(model, x' * data.slate.Σ * x - 2 * x' * data.opp_cov)
+    var_x = @expression(model, x' * data.slate.Σ * x)
     # Maximize projected fantasy points
     @objective(model, Max, mu_x + λ * var_x)
 
     optimize!(model)
     println(termination_status(model))
-    # Return optimization result vector, as well as estimated probability of exceeding 220 points
-    return (round.(Int, value.(x)), payoff(value(mu_x), value(var_x), data.order_stats_mu, data.order_stats_sigma, data.payoffs))
+    # Return optimization result vector, as well as estimated probability of exceeding 200 points
+    # This is the average first place score for MLB contests on DraftKings
+    #return (round.(Int, value.(x)), payoff(value(mu_x), value(var_x), data.order_stats_mu, data.order_stats_sigma, data.payoffs))
+    return (round.(Int, value.(x)), 1 - cdf(Normal(), (200 - value(mu_x)) / sqrt(value(var_x))))
 end
 
 
@@ -90,7 +93,7 @@ function do_optim(data::PGATournyOptimData, λ::Real, past_lineups::AbstractVect
 
     optimize!(model)
     println(termination_status(model))
-    # Return optimization result vector, as well as estimated probability of exceeding 220 points
+    # Return optimization result vector, as well as expected payoff of the entry
     return (round.(Int, value.(x)), payoff(value(mu_x), value(var_x), data.order_stats_mu, data.order_stats_sigma, data.payoffs))
 end
 
@@ -102,7 +105,7 @@ Does optimization over range of λ values and returns the lineup with the highes
 """
 function lambda_max(data::TournyOptimData, past_lineups::AbstractVector{<:AbstractVector{<:Integer}})
     # I've found that lambdas from around 0 to 0.05 are selected, with most being 0.03
-    lambdas = 0.01:0.01:0.08
+    lambdas = 0.01:0.01:0.10
     w_star = Vector{Tuple{Vector{Int64},Float64}}(undef, length(lambdas))
     # Perform optimization over array of λ values
     Threads.@threads for i in 1:length(lambdas)

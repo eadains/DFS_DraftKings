@@ -4,39 +4,10 @@ import requests
 import json
 from difflib import get_close_matches
 import os
+from config import cookies, headers
 
 
 def get_mlb_data(periodId):
-    # IF THERE ARE EVER ANY STRANGE DATA ERRORS, UPDATE THESE
-    cookies = {
-        "_fbp": "fb.1.1652982905489.473636789",
-        ".ASPXANONYMOUS": "7FPJC4O72AEkAAAANzJhYzQyZTAtMjBlMC00Y2U3LTg0NDgtNGNlYmQ5NzI2Y2Vj0",
-        "dnn_IsMobile": "False",
-        ".DOTNETNUKE": "0C97292004372F95118A4E6BB0B9CB170710A812BF08D32C29511ABE235192EBD470BFCA2EC516B9A310356B76E52D2E4BA246E78C59D88C48AA4E3EA79CCC35C64961E88E758A6EEF03362000900879CE2682417D6E2449BE39DD9155430EF4304D13AA4A5ABB893CA707AA31B3E0670E397188DBE9A1CCDE9FEF12AE76B41567819DD1",
-        "language": "en-US",
-        "_gid": "GA1.2.1722139285.1660496540",
-        "_gat_gtag_UA_106589727_1": "1",
-        "_ga_EXD94TY7GX": "GS1.1.1660496539.162.1.1660496549.0",
-        "_ga": "GA1.2.1013963682.1652982905",
-    }
-
-    headers = {
-        "Accept": "application/json, text/plain, */*",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Connection": "keep-alive",
-        # Requests sorts cookies= alphabetically
-        # 'Cookie': '_fbp=fb.1.1652982905489.473636789; .ASPXANONYMOUS=7FPJC4O72AEkAAAANzJhYzQyZTAtMjBlMC00Y2U3LTg0NDgtNGNlYmQ5NzI2Y2Vj0; dnn_IsMobile=False; .DOTNETNUKE=0C97292004372F95118A4E6BB0B9CB170710A812BF08D32C29511ABE235192EBD470BFCA2EC516B9A310356B76E52D2E4BA246E78C59D88C48AA4E3EA79CCC35C64961E88E758A6EEF03362000900879CE2682417D6E2449BE39DD9155430EF4304D13AA4A5ABB893CA707AA31B3E0670E397188DBE9A1CCDE9FEF12AE76B41567819DD1; language=en-US; _gid=GA1.2.1722139285.1660496540; _gat_gtag_UA_106589727_1=1; _ga_EXD94TY7GX=GS1.1.1660496539.162.1.1660496549.0; _ga=GA1.2.1013963682.1652982905',
-        "DNT": "1",
-        "Referer": "https://www.linestarapp.com/Projections",
-        "Sec-Fetch-Dest": "empty",
-        "Sec-Fetch-Mode": "cors",
-        "Sec-Fetch-Site": "same-origin",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36",
-        "sec-ch-ua": '"Chromium";v="104", " Not A;Brand";v="99", "Google Chrome";v="104"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Windows"',
-    }
-
     params = {
         "periodId": periodId,
         "site": "1",
@@ -159,8 +130,6 @@ def get_mlb_proj_slate(periodId):
     # Raise errors if there are issues with selecting the right slate
     if len(main_slate) == 0:
         raise ValueError("No Main slate found")
-    elif len(main_slate) > 1:
-        raise ValueError("Multiple Main slates found")
     else:
         main_slate = main_slate[0]
 
@@ -276,5 +245,9 @@ if __name__ == "__main__":
 
     # Ensure batting order is integer
     slate["Order"] = slate["Order"].astype(int)
+    # Sometimes ID becomes inf, I have no idea why but if there's an error use this
+    # slate["ID"] = slate["ID"].replace([np.inf, -np.inf], np.nan)
+    # slate = slate.dropna()
+    # slate["ID"] = slate["ID"].astype(int)
     slate.to_csv(f"./data/mlb_slates/{date}.csv", index=False)
     os.remove("./data/mlb_slates/DKSalaries.csv")
