@@ -6,7 +6,7 @@ include("opp_teams.jl")
 
 println("Getting slate")
 # SET PARAMETER: slate date
-slate = get_mlb_slate("2022-09-03")
+slate = get_mlb_slate("2022-09-06")
 # SET PARAMETER: payoffs
 # 15k
 payoffs = Tuple{Int64,Float64}[
