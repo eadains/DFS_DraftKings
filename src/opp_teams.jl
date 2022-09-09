@@ -140,7 +140,6 @@ function get_opp_scores(slate::Slate, μ::AbstractVector{<:Real}, entries::Integ
     for i = 1:entries
         opp_scores[i] = opp_team_score(slate, μ)
     end
-    sort!(opp_scores, rev=true)
     return opp_scores
 end
 
@@ -164,43 +163,11 @@ function get_samples(slate::Slate, entries::Integer, samples::Integer)
 end
 
 
-"""
-    get_order_stats(slate::Slate, payoffs::AbstractVector{<:Tuple{<:Integer,<:Real}}, entries::Integer, samples::Integer)
-
-Get mean, variance, and covariance of order statistics given ranks defined in payoffs
-"""
-function get_order_stats(slate::Slate, payoffs::AbstractVector{<:Tuple{<:Integer,<:Real}}, entries::Integer, samples::Integer)
-    score_draws, opp_scores = get_samples(slate, entries, samples)
-    order_stats_mu = Dict{Int64,Float64}()
-    order_stats_sigma = Dict{Int64,Float64}()
-    opp_cov = Vector{Float64}()
-    for (rank, payoff) in payoffs
-        if payoff == 0
-            # The rank 1 before the first rank where payoff is 0 is the last rank that gets paid
-            r = rank - 1
-            # Compute covariance between each players score draws and the rth order statistic of opponent scores
-            opp_cov = [cov([x[i] for x in score_draws], [x[r] for x in opp_scores]) for i in 1:length(slate.players)]
-        end
-        # Get mean and variance of order statistics for each rank
-        order_stats_mu[rank] = mean(x[rank] for x in opp_scores)
-        order_stats_sigma[rank] = var(x[rank] for x in opp_scores)
-    end
-    return (order_stats_mu, order_stats_sigma, opp_cov)
-end
-
-
-"""
-    payoff(lineup_mu::Real, lineup_var::Real, order_stats_mu::AbstractDict{<:Integer,<:Real}, order_stats_sigma::AbstractDict{<:Integer,<:Real}, payoffs::AbstractVector{<:Tuple{<:Integer,<:Real}})
-
-Calculates expected payoff given a lineups mean and variance
-"""
-function payoff(lineup_mu::Real, lineup_var::Real, order_stats_mu::AbstractDict{<:Integer,<:Real}, order_stats_sigma::AbstractDict{<:Integer,<:Real}, payoffs::AbstractVector{<:Tuple{<:Integer,<:Real}})
-    E = 0
-    for i in 1:(length(payoffs)-1)
-        mu = lineup_mu - order_stats_mu[payoffs[i][1]]
-        sigmasq = lineup_var + order_stats_sigma[payoffs[i][1]]
-        rank_payoff = (payoffs[i][2] - payoffs[i+1][2]) * (1 - cdf(Normal(), -mu / sqrt(sigmasq)))
-        E += rank_payoff
-    end
-    return E
+function get_opp_cov(score_draws, opp_scores)
+    # Number of players
+    n = length(score_draws[1])
+    # Following the paper, we assume covariance dependence on ranking is low
+    # so just use the 10th percentile rank
+    d = round(Int, 0.10 * length(opp_scores[1]))
+    return [cov([x[i] for x in score_draws], [x[d] for x in opp_scores]) for i = 1:n]
 end

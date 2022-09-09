@@ -64,13 +64,14 @@ struct PGATournyOptimData <: TournyOptimData
     slate::PGASlate
     overlap::Integer
     payoffs::Vector{Tuple{Int,Float64}}
-    order_stats_mu::Dict{Int,Float64}
-    order_stats_sigma::Dict{Int,Float64}
     opp_cov::Vector{Float64}
+    score_draws::Vector{Vector{Float64}}
+    opp_scores::Vector{Vector{Float64}}
 end
 
 
 function PGATournyOptimData(slate, payoffs, overlap, entries, samples)
-    order_stats_mu, order_stats_sigma, opp_cov = get_order_stats(slate, payoffs, entries, samples)
-    return PGATournyOptimData(slate, overlap, payoffs, order_stats_mu, order_stats_sigma, opp_cov)
+    score_draws, opp_scores = get_samples(slate, entries, samples)
+    opp_cov = get_opp_cov(score_draws, opp_scores)
+    return PGATournyOptimData(slate, overlap, payoffs, opp_cov, score_draws, opp_scores)
 end

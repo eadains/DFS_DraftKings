@@ -2,7 +2,7 @@ using JuMP
 using Xpress
 using Distributions
 include("types.jl")
-include("opp_teams.jl")
+include("payoffs.jl")
 
 
 """
@@ -94,7 +94,8 @@ function do_optim(data::PGATournyOptimData, λ::Real, past_lineups::AbstractVect
     optimize!(model)
     println(termination_status(model))
     # Return optimization result vector, as well as expected payoff of the entry
-    return (round.(Int, value.(x)), payoff(value(mu_x), value(var_x), data.order_stats_mu, data.order_stats_sigma, data.payoffs))
+    lineup = round.(Int, value.(x))
+    return (lineup, get_expected_payoff(lineup, past_lineups, data))
 end
 
 

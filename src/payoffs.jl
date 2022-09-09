@@ -1,3 +1,6 @@
+include("types.jl")
+
+
 """
     compute_rankings(scores::AbstractVector{<:Real})
 
@@ -81,22 +84,35 @@ IMPORTANT: ASSUMES PAYOFFS AND SCORES ARE SORTED APPROPRIATELY AS DEFINED IN THE
 """
 function compute_payoff(new_score::Real, payoffs::AbstractVector{<:Tuple{<:Integer,<:Real}}, all_scores::AbstractVector{<:Real})
     rankings = compute_rankings(all_scores)
-    i = 1
-    while true
-        if i > maximum(keys(rankings))
-            # If the index has gone past the end of the rankings, then return payoff of last ranking plus 1
-            # This should always be 0
-            return get_rank_payoff(i + 1, payoffs)
-        elseif new_score == rankings[i][1]
+    for i in sort(collect(keys(rankings)))
+        if new_score == rankings[i][1]
             # If new score matches rankings score exactly, there is a tie and payoffs are summed and divded equally
             # For instance, if there are two people tied for first, add the prizes for 1st and 2nd and split it
             return sum(get_rank_payoff(n, payoffs) for n = i:i+length(rankings[i])) / (length(rankings[i]) + 1)
-        elseif new_score < rankings[i][1]
-            # If new score is still lower than the ranking score, keep going down
-            i += length(rankings[i])
         elseif new_score > rankings[i][1]
             # If new score is higher than the ranking score, that means the new score takes that rank
             return get_rank_payoff(i, payoffs)
         end
     end
+    # If new_score ranks past the bottom of the rankings list, then payoff is always 0
+    return 0.0
+end
+
+
+"""
+    get_expected_payoff(new_lineup::AbstractVector{<:Integer}, past_lineups::AbstractVector{<:AbstractVector{<:Integer}}, data::TournyOptimData)
+
+Computes expected payoff of given lineup using past lineups and the necessary optimization data
+"""
+function get_expected_payoff(new_lineup::AbstractVector{<:Integer}, past_lineups::AbstractVector{<:AbstractVector{<:Integer}}, data::TournyOptimData)
+    payoffs = Vector{Float64}(undef, length(data.score_draws))
+    Threads.@threads for i = 1:length(data.score_draws)
+        new_lineup_score = data.score_draws[i] ⋅ new_lineup
+        println(new_lineup_score)
+        past_lineups_scores = Float64[data.score_draws[i] ⋅ x for x in past_lineups]
+        all_scores = [data.opp_scores[i]; past_lineups_scores]
+        sort!(all_scores, rev=true)
+        payoffs[i] = compute_payoff(new_lineup_score, data.payoffs, all_scores)
+    end
+    return mean(payoffs)
 end
