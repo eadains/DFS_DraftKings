@@ -50,6 +50,15 @@ function get_pga_cov(players::AbstractVector{<:NamedTuple}, hist::AbstractVector
 end
 
 
+function get_nfl_cov(players::AbstractVector{<:NamedTuple}, hist::AbstractVector{<:NamedTuple})
+    corr = get_corr(hist, players)
+    σ = get_nfl_sigma(hist, players)
+    Σ = Diagonal(σ) * corr * Diagonal(σ)
+    # Return positive definite version of matrix
+    return makeposdef(Symmetric(Σ))
+end
+
+
 """
     get_mlb_sigma(hist::AbstractVector{<:NamedTuple}, players::AbstractVector{<:NamedTuple})
 
@@ -95,6 +104,24 @@ function get_pga_sigma(hist::AbstractVector{<:NamedTuple}, players::AbstractVect
 end
 
 
+function get_nfl_sigma(hist::AbstractVector{<:NamedTuple}, players::AbstractVector{<:NamedTuple})
+    σ = Vector{Float64}(undef, length(players))
+    for (i, player) in enumerate(players)
+        # Find historical score records for player
+        records = get_hist_player_records(hist, player)
+        # If there aren't many, use standard deviation of all records matching
+        # the players order and position as a prior.
+        if length(records) < 5
+            position_records = get_hist_position_records(hist, player.Position)
+            σ[i] = std([x.Scored for x in position_records])
+        else
+            σ[i] = std([x.Scored for x in records])
+        end
+    end
+    return σ
+end
+
+
 """
     get_hist_player_records(hist::AbstractVector{T}, player::NamedTuple) where {T<:NamedTuple}
 
@@ -126,6 +153,16 @@ function get_hist_position_records(hist::AbstractVector{T}, position, order) whe
     return result
 end
 
+
+function get_hist_position_records(hist::AbstractVector{T}, position) where {T<:NamedTuple}
+    result = T[]
+    for record in hist
+        if record.Position == position
+            append!(result, Ref(record))
+        end
+    end
+    return result
+end
 
 
 """
@@ -168,12 +205,24 @@ Returns the correlation of those players
 Similar process when the players are on opposing teams, except the pairs are from opposing teams on each date.
 """
 function players_corr(hist::AbstractVector{<:NamedTuple}, p1::NamedTuple, p2::NamedTuple)
-    if p1.Team == p2.Team
-        pairs = player_pairs(hist, p1.Position, p1.Order, p2.Position, p2.Order, false)
-    elseif p1.Opponent == p2.Team
-        pairs = player_pairs(hist, p1.Position, p1.Order, p2.Position, p2.Order, true)
+    # For MLB, batting order will be present, for NFL it will not
+    # TODO: Dispatch on NamedTuple type instead of checking this
+    if "Order" in keys(p1)
+        if p1.Team == p2.Team
+            pairs = player_pairs(hist, p1.Position, p1.Order, p2.Position, p2.Order, false)
+        elseif p1.Opponent == p2.Team
+            pairs = player_pairs(hist, p1.Position, p1.Order, p2.Position, p2.Order, true)
+        else
+            return 0.0
+        end
     else
-        return 0.0
+        if p1.Team == p2.Team
+            pairs = player_pairs(hist, p1.Position, p2.Position, false)
+        elseif p1.Opponent == p2.Team
+            pairs = player_pairs(hist, p1.Position, p2.Position, true)
+        else
+            return 0.0
+        end
     end
 
     if length(pairs) <= 2
@@ -197,6 +246,26 @@ and this function is expensive
 @memoize function player_pairs(hist::AbstractVector{<:NamedTuple}, p1_position::AbstractString, p1_order::Integer, p2_position::AbstractString, p2_order::Integer, opposing::Bool)
     p1_sim = [x for x in hist if (x.Position == p1_position) && (x.Order == p1_order)]
     p2_sim = [x for x in hist if (x.Position == p2_position) && (x.Order == p2_order)]
+    if opposing
+        pairs = [(p1_sim[i], p2_sim[j]) for i = 1:length(p1_sim), j = 1:length(p2_sim) if (p1_sim[i].Team == p2_sim[j].Opponent) && (p1_sim[i].Date == p2_sim[j].Date) && (p1_sim[i].Name != p2_sim[j].Name)]
+    else
+        pairs = [(p1_sim[i], p2_sim[j]) for i = 1:length(p1_sim), j = 1:length(p2_sim) if (p1_sim[i].Team == p2_sim[j].Team) && (p1_sim[i].Date == p2_sim[j].Date) && (p1_sim[i].Name != p2_sim[j].Name)]
+    end
+    return pairs
+end
+
+
+"""
+    player_pairs(hist::AbstractVector{<:NamedTuple}, p1_position::AbstractString, p1_order::Integer, p2_position::AbstractString, p2_order::Integer, opposing::Bool)
+
+Finds pairs of players where the each player matches the position given
+Parameter opposing decides whether the pairs of players should be from opposing teams or the same team.
+This function is cached because there are only limited numbers of combinations of player positions and orders,
+and this function is expensive
+"""
+@memoize function player_pairs(hist::AbstractVector{<:NamedTuple}, p1_position::AbstractString, p2_position::AbstractString, opposing::Bool)
+    p1_sim = [x for x in hist if x.Position == p1_position]
+    p2_sim = [x for x in hist if x.Position == p2_position]
     if opposing
         pairs = [(p1_sim[i], p2_sim[j]) for i = 1:length(p1_sim), j = 1:length(p2_sim) if (p1_sim[i].Team == p2_sim[j].Opponent) && (p1_sim[i].Date == p2_sim[j].Date) && (p1_sim[i].Name != p2_sim[j].Name)]
     else

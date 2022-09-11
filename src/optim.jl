@@ -100,6 +100,58 @@ end
 
 
 """
+    do_optim(data::NFLTournyOptimData)
+
+Runs optimization for tournaments
+"""
+function do_optim(data::NFLTournyOptimData, λ::Real, past_lineups::AbstractVector{<:AbstractVector{<:Integer}})
+    model = Model(Xpress.Optimizer)
+
+    p = length(data.slate.players)
+    # Players variable
+    @variable(model, x[1:p], binary = true)
+    # Games variable
+    @variable(model, g[data.slate.games], binary = true)
+
+    # Total salary must be <= $50,000
+    @constraint(model, sum(data.slate.players[i].Salary * x[i] for i = 1:p) <= 50000)
+    # Must select 9 total players
+    @constraint(model, sum(x) == 9)
+
+    # Constraints for each position
+    @constraint(model, sum(x[i] for i = 1:p if data.slate.players[i].Position == "QB") == 1)
+    @constraint(model, 2 <= sum(x[i] for i = 1:p if data.slate.players[i].Position == "RB") <= 3)
+    @constraint(model, 3 <= sum(x[i] for i = 1:p if data.slate.players[i].Position == "WR") <= 4)
+    @constraint(model, 1 <= sum(x[i] for i = 1:p if data.slate.players[i].Position == "TE") <= 2)
+    @constraint(model, sum(x[i] for i = 1:p if data.slate.players[i].Position == "DST") == 1)
+
+    for game in data.slate.games
+        # If no players are selected from a game g is set to 0
+        @constraint(model, g[game] <= sum(x[i] for i = 1:p if data.slate.players[i].Game == game))
+    end
+    # Must select players from at least 2 games
+    @constraint(model, sum(g) >= 2)
+
+    # If there are any past lineups, ensure that the current lineup doesn't overlap too much with any of them
+    for past in past_lineups
+        @constraint(model, sum(x[i] * past[i] for i = 1:p) <= data.overlap)
+    end
+
+    mu_x = @expression(model, x' * data.slate.μ)
+    var_x = @expression(model, x' * data.slate.Σ * x - 2 * x' * data.opp_cov)
+    # Maximize projected fantasy points
+    @objective(model, Max, mu_x + λ * var_x)
+
+    optimize!(model)
+    println(termination_status(model))
+    # Return optimization result vector, as well as expected payoff of the entry
+    lineup = round.(Int, value.(x))
+    return (lineup, get_expected_payoff(lineup, past_lineups, data))
+end
+
+
+
+"""
     lambda_max(data::TournyOptimData, past_lineups::AbstractVector{<:AbstractVector{<:Integer}})
 
 Does optimization over range of λ values and returns the lineup with the highest objective function.

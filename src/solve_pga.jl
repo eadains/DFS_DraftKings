@@ -69,7 +69,7 @@ payoffs = Tuple{Int64,Float64}[
 ]
 println("Making optim data")
 # SET PARAMETER: Overlap, total entries, and samples
-data = PGATournyOptimData(slate, payoffs, 4, 59453, 250)
+data = PGATournyOptimData(slate, payoffs, 6, 59453, 250)
 # SET PARAMETER: number of lineups to generate
 println("Getting lineups")
 lineups = tourny_lineups(data, 50)

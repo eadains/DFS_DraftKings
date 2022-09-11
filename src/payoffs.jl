@@ -108,7 +108,6 @@ function get_expected_payoff(new_lineup::AbstractVector{<:Integer}, past_lineups
     payoffs = Vector{Float64}(undef, length(data.score_draws))
     Threads.@threads for i = 1:length(data.score_draws)
         new_lineup_score = data.score_draws[i] ⋅ new_lineup
-        println(new_lineup_score)
         past_lineups_scores = Float64[data.score_draws[i] ⋅ x for x in past_lineups]
         all_scores = [data.opp_scores[i]; past_lineups_scores]
         sort!(all_scores, rev=true)

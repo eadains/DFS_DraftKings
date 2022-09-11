@@ -34,6 +34,17 @@ function get_pga_slate(date::AbstractString)
 end
 
 
+function get_nfl_slate(date::AbstractString)
+    players = CSV.read("./data/nfl_slates/$(date).csv", Tables.rowtable)
+    hist = CSV.read("./data/nfl_hist.csv", Tables.rowtable)
+    μ = [player.Projection for player in players]
+    Σ = get_nfl_cov(players, hist)
+    games = unique([player.Game for player in players])
+    teams = unique([player.Team for player in players])
+    return NFLSlate(players, games, teams, μ, Σ)
+end
+
+
 """
     transform_lineup(slate::MLBSlate, lineup::AbstractVector{<:Integer})
 
