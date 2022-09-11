@@ -158,7 +158,7 @@ function verify_team(slate::MLBSlate, indices::AbstractVector{<:Integer})
         # Must select 10 players
         length(team) == 10,
         # Salary must be under 50000, but assume people use most of it
-        45000 <= sum([x.Salary for x in team]) <= 50000,
+        49000 <= sum([x.Salary for x in team]) <= 50000,
         # Must select no more than 5 hitters per team
         all(values(teams_player_count) .<= 5),
         # Must select players from at least 2 games
@@ -180,7 +180,7 @@ function verify_team(slate::PGASlate, indices::AbstractVector{<:Integer})
         # Must select 6 golfers
         length(team) == 6,
         # Salary must be under 50000, but assume people use most of it
-        45000 <= sum([x.Salary for x in team]) <= 50000
+        49000 <= sum([x.Salary for x in team]) <= 50000
     ]
     return all(constraints)
 end
@@ -198,7 +198,7 @@ function verify_team(slate::NFLSlate, indices::AbstractVector{<:Integer})
     games_count = countmap([x.Game for x in team])
     constraints = [
         # Salary must be under 50000, but assume people use most of it
-        45000 <= sum([x.Salary for x in team]) <= 50000,
+        49000 <= sum([x.Salary for x in team]) <= 50000,
         # Must select players from at least 2 games
         length(keys(games_count)) >= 2
     ]

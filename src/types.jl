@@ -1,3 +1,5 @@
+using StatsBase
+
 struct TeamGenInfo
     pos_probs::Dict{String,Tuple{Vector{Int},ProbabilityWeights}}
     stack_probs::Dict{Int,Tuple{Vector{Int},ProbabilityWeights}}

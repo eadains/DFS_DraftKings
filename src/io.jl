@@ -139,7 +139,64 @@ end
 
 
 """
-    write_lineups(lineups::Vector{Dict{String, String}})
+    transform_lineup(slate::NFLSlate, lineup::AbstractVector{<:Integer})
+
+Transforms lineup vector from optimization to a dict mapping between roster position and player ID
+"""
+function transform_lineup(slate::NFLSlate, lineup::AbstractVector{<:Integer})
+    # Roster positions to fill
+    positions = Dict{String,Union{Int64,Missing}}(
+        "QB" => missing,
+        "RB1" => missing,
+        "RB2" => missing,
+        "WR1" => missing,
+        "WR2" => missing,
+        "WR3" => missing,
+        "TE" => missing,
+        "FLEX" => missing,
+        "DST" => missing
+    )
+    p = length(slate.players)
+    for i in 1:p
+        # If player is selected
+        if value(lineup[i]) == 1
+            player = slate.players[i]
+            # If pitcher, fill open pitcher lost
+            if player.Position == "RB"
+                if ismissing(positions["RB1"])
+                    positions["RB1"] = player.ID
+                elseif ismissing(positions["RB2"])
+                    positions["RB2"] = player.ID
+                elseif ismissing(positions["FLEX"])
+                    positions["FLEX"] = player.ID
+                end
+            elseif player.Position == "WR"
+                if ismissing(positions["WR1"])
+                    positions["WR1"] = player.ID
+                elseif ismissing(positions["WR2"])
+                    positions["WR2"] = player.ID
+                elseif ismissing(positions["WR3"])
+                    positions["WR3"] = player.ID
+                elseif ismissing(positions["FLEX"])
+                    positions["FLEX"] = player.ID
+                end
+            elseif player.Position == "TE"
+                if ismissing(positions["TE"])
+                    positions["TE"] = player.ID
+                elseif ismissing(positions["FLEX"])
+                    positions["FLEX"] = player.ID
+                end
+            else
+                positions[player.Position] = player.ID
+            end
+        end
+    end
+    return positions
+end
+
+
+"""
+    write_lineups(slate::MLBSlate, lineups::AbstractVector{<:AbstractVector{<:Integer}})
 
 Writes multiple tournament lineups to mlb_lineups.csv
 """
@@ -155,7 +212,7 @@ end
 
 
 """
-    write_lineups(lineups::Vector{Dict{String, String}})
+    write_lineups(slate::PGASlate, lineups::AbstractVector{<:AbstractVector{<:Integer}})
 
 Writes multiple tournament lineups to pga_lineups.csv
 """
@@ -165,6 +222,21 @@ function write_lineups(slate::PGASlate, lineups::AbstractVector{<:AbstractVector
         for lineup in lineups
             lineup_dict = transform_lineup(slate, lineup)
             println(file, "$(lineup_dict["G1"]),$(lineup_dict["G2"]),$(lineup_dict["G3"]),$(lineup_dict["G4"]),$(lineup_dict["G5"]),$(lineup_dict["G6"])")
+        end
+    end
+end
+
+"""
+    write_lineups(slate::NFLSlate, lineups::AbstractVector{<:AbstractVector{<:Integer}})
+
+Writes multiple tournament lineups to nfl_lineups.csv
+"""
+function write_lineups(slate::NFLSlate, lineups::AbstractVector{<:AbstractVector{<:Integer}})
+    open("./nfl_lineups.csv", "w") do file
+        println(file, "QB,RB,RB,WR,WR,WR,TE,FLEX,DST")
+        for lineup in lineups
+            lineup_dict = transform_lineup(slate, lineup)
+            println(file, "$(lineup_dict["QB"]),$(lineup_dict["RB1"]),$(lineup_dict["RB2"]),$(lineup_dict["WR1"]),$(lineup_dict["WR2"]),$(lineup_dict["WR3"]),$(lineup_dict["TE"]),$(lineup_dict["FLEX"]),$(lineup_dict["DST"])")
         end
     end
 end

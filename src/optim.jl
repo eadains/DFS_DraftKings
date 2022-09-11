@@ -158,7 +158,7 @@ Does optimization over range of λ values and returns the lineup with the highes
 """
 function lambda_max(data::TournyOptimData, past_lineups::AbstractVector{<:AbstractVector{<:Integer}})
     # I've found that lambdas from around 0 to 0.05 are selected, with most being 0.03
-    lambdas = 0.01:0.01:0.10
+    lambdas = 0.01:0.01:0.08
     w_star = Vector{Tuple{Vector{Int64},Float64}}(undef, length(lambdas))
     # Perform optimization over array of λ values
     Threads.@threads for i in 1:length(lambdas)
